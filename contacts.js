@@ -2,10 +2,11 @@
  * 联系人管理
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave, saveNow } from './save-manager.js';
 import { getSettings, LOREBOOK_NAME_PREFIX, LOREBOOK_NAME_SUFFIX } from './config.js';
 import { generateContactsList } from './ui.js';
 import { showToast } from './toast.js';
+import { selectAndCrop } from './cropper.js';
 
 // 当前换头像的联系人索引
 let pendingAvatarContactIndex = -1;
@@ -40,7 +41,7 @@ export function addContact(characterData) {
     customHakimiBreakLimit: false
   });
 
-  saveSettingsDebounced();
+  requestSave();
   refreshContactsList();
   return true;
 }
@@ -65,7 +66,7 @@ export function deleteContact(index) {
     deleteContactLorebooks(contact);
 
     settings.contacts.splice(index, 1);
-    saveSettingsDebounced();
+    saveNow();
     refreshContactsList();
   }
 }
@@ -109,7 +110,7 @@ export function deleteGroupChat(groupIndex) {
     deleteGroupLorebooks(group, settings);
 
     groupChats.splice(groupIndex, 1);
-    saveSettingsDebounced();
+    requestSave();
     refreshContactsList();
     // 同时刷新聊天列表
     import('./ui.js').then(m => m.refreshChatList());
@@ -142,41 +143,21 @@ function deleteGroupLorebooks(group, settings) {
 // 更换角色头像（在设置弹窗中使用）
 export function changeContactAvatar(contactIndex) {
   pendingAvatarContactIndex = contactIndex;
-  let input = document.getElementById('wechat-contact-avatar-input');
-  if (!input) {
-    input = document.createElement('input');
-    input.type = 'file';
-    input.id = 'wechat-contact-avatar-input';
-    input.accept = 'image/*';
-    input.style.display = 'none';
-    document.body.appendChild(input);
 
-    input.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file || pendingAvatarContactIndex < 0) return;
+  // 使用裁剪器选择并裁剪头像（1:1比例）
+  selectAndCrop(1, (croppedImage) => {
+    if (pendingAvatarContactIndex < 0) return;
 
-      try {
-        const reader = new FileReader();
-        reader.onload = function(event) {
-          const settings = getSettings();
-          if (settings.contacts[pendingAvatarContactIndex]) {
-            settings.contacts[pendingAvatarContactIndex].avatar = event.target.result;
-            saveSettingsDebounced();
-            refreshContactsList();
-            // 更新弹窗中的头像预览
-            updateContactSettingsAvatar(pendingAvatarContactIndex);
-            showToast('角色头像已更换');
-          }
-        };
-        reader.readAsDataURL(file);
-      } catch (err) {
-        console.error('[可乐] 更换角色头像失败:', err);
-        showToast('更换头像失败: ' + err.message, '❌');
-      }
-      e.target.value = '';
-    });
-  }
-  input.click();
+    const settings = getSettings();
+    if (settings.contacts[pendingAvatarContactIndex]) {
+      settings.contacts[pendingAvatarContactIndex].avatar = croppedImage;
+      requestSave();
+      refreshContactsList();
+      // 更新弹窗中的头像预览
+      updateContactSettingsAvatar(pendingAvatarContactIndex);
+      showToast('角色头像已更换');
+    }
+  });
 }
 
 // 更新弹窗中的头像预览
@@ -262,7 +243,7 @@ export function saveContactSettings() {
   // 保存哈基米破限
   contact.customHakimiBreakLimit = document.getElementById('wechat-contact-hakimi-toggle')?.classList.contains('on') || false;
 
-  saveSettingsDebounced();
+  requestSave();
   showToast('角色设置已保存');
 
   // 关闭弹窗
@@ -450,7 +431,7 @@ function deleteContactDirect(index) {
   deleteContactLorebooks(contact);
 
   settings.contacts.splice(index, 1);
-  saveSettingsDebounced();
+  requestSave();
   refreshContactsList();
 }
 

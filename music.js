@@ -1,4 +1,5 @@
 import { showToast } from './toast.js';
+import { escapeHtml } from './utils.js';
 
 const BASE_URL = 'https://music-dl.sayqz.com';
 
@@ -34,12 +35,21 @@ const MODE_RANDOM_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="
 const MODE_LIST_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 01-4 4H3"/></svg>';
 const PLAYLIST_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h8"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>';
 
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+// 随机推歌用的热门关键词库
+const RANDOM_KEYWORDS = [
+  '热门', '流行', '抖音', '网红', '经典', '怀旧', '情歌', '伤感',
+  '轻音乐', '纯音乐', '钢琴', '吉他', '民谣', '摇滚', '电音', 'DJ',
+  '周杰伦', '林俊杰', '邓紫棋', '薛之谦', '毛不易', '陈奕迅', '王菲',
+  'Taylor Swift', 'Ed Sheeran', 'Bruno Mars', 'Adele', 'BTS',
+  '日语', '韩语', '粤语', '古风', '国风', '说唱', 'rap',
+  '治愈', '励志', '甜蜜', '浪漫', '夜晚', '清晨', '放松'
+];
+
+// 已播放过的歌曲ID（避免重复推荐）
+let playedSongIds = new Set();
+
+// 是否已显示过随机推歌提示
+let hasShownRandomToast = false;
 
 export function formatDuration(seconds) {
   if (seconds === null || seconds === undefined || isNaN(seconds)) return '--:--';
@@ -113,18 +123,18 @@ export async function fetchLyrics(song) {
 function createSingleLineLyrics() {
   if (document.getElementById('wechat-single-lyrics')) return;
 
-  var phoneContainer = document.getElementById('wechat-phone');
+  let phoneContainer = document.getElementById('wechat-phone');
   if (!phoneContainer) return;
 
   // 生成颜色按钮HTML
-  var colorBtnsHtml = '';
-  for (var i = 0; i < LYRICS_COLORS.length; i++) {
-    var c = LYRICS_COLORS[i];
-    var activeClass = (c === lyricsColor) ? ' active' : '';
+  let colorBtnsHtml = '';
+  for (let i = 0; i < LYRICS_COLORS.length; i++) {
+    let c = LYRICS_COLORS[i];
+    let activeClass = (c === lyricsColor) ? ' active' : '';
     colorBtnsHtml += '<button class="wechat-lyrics-color-btn color-' + c + activeClass + '" data-color="' + c + '"></button>';
   }
 
-  var html = '<div id="wechat-single-lyrics" class="wechat-single-lyrics hidden">' +
+  let html = '<div id="wechat-single-lyrics" class="wechat-single-lyrics hidden">' +
     '<div class="wechat-single-lyrics-text color-' + lyricsColor + '">暂无歌词</div>' +
     '<div class="wechat-single-lyrics-colors">' + colorBtnsHtml + '</div>' +
     '<button class="wechat-single-lyrics-lock">' + UNLOCK_ICON + '</button>' +
@@ -135,11 +145,11 @@ function createSingleLineLyrics() {
 }
 
 function initSingleLineLyricsEvents() {
-  var panel = document.getElementById('wechat-single-lyrics');
+  let panel = document.getElementById('wechat-single-lyrics');
   if (!panel) return;
 
-  var lockBtn = panel.querySelector('.wechat-single-lyrics-lock');
-  var colorsContainer = panel.querySelector('.wechat-single-lyrics-colors');
+  let lockBtn = panel.querySelector('.wechat-single-lyrics-lock');
+  let colorsContainer = panel.querySelector('.wechat-single-lyrics-colors');
 
   if (lockBtn) {
     lockBtn.addEventListener('click', function(e) {
@@ -153,27 +163,27 @@ function initSingleLineLyricsEvents() {
   // 颜色按钮点击事件
   if (colorsContainer) {
     colorsContainer.addEventListener('click', function(e) {
-      var btn = e.target.closest('.wechat-lyrics-color-btn');
+      let btn = e.target.closest('.wechat-lyrics-color-btn');
       if (!btn) return;
       e.stopPropagation();
 
-      var newColor = btn.dataset.color;
+      let newColor = btn.dataset.color;
       if (newColor && LYRICS_COLORS.indexOf(newColor) >= 0) {
         lyricsColor = newColor;
 
         // 更新文字颜色
-        var textEl = panel.querySelector('.wechat-single-lyrics-text');
+        let textEl = panel.querySelector('.wechat-single-lyrics-text');
         if (textEl) {
           // 移除所有颜色类
-          for (var i = 0; i < LYRICS_COLORS.length; i++) {
+          for (let i = 0; i < LYRICS_COLORS.length; i++) {
             textEl.classList.remove('color-' + LYRICS_COLORS[i]);
           }
           textEl.classList.add('color-' + newColor);
         }
 
         // 更新按钮激活状态
-        var allBtns = colorsContainer.querySelectorAll('.wechat-lyrics-color-btn');
-        for (var j = 0; j < allBtns.length; j++) {
+        let allBtns = colorsContainer.querySelectorAll('.wechat-lyrics-color-btn');
+        for (let j = 0; j < allBtns.length; j++) {
           allBtns[j].classList.remove('active');
         }
         btn.classList.add('active');
@@ -190,8 +200,8 @@ function initSingleLineLyricsEvents() {
   });
 
   // 拖拽功能（仅在未锁定时）- 支持上下左右移动
-  var isDragging = false;
-  var startX, startY, initialX, initialY;
+  let isDragging = false;
+  let startX, startY, initialX, initialY;
 
   panel.addEventListener('mousedown', startDrag);
   panel.addEventListener('touchstart', startDrag, { passive: false });
@@ -201,8 +211,8 @@ function initSingleLineLyricsEvents() {
     if (e.target.closest('.wechat-single-lyrics-lock')) return;
     if (e.target.closest('.wechat-lyrics-color-btn')) return;
     isDragging = true;
-    var rect = panel.getBoundingClientRect();
-    var phoneRect = document.getElementById('wechat-phone').getBoundingClientRect();
+    let rect = panel.getBoundingClientRect();
+    let phoneRect = document.getElementById('wechat-phone').getBoundingClientRect();
     initialX = rect.left - phoneRect.left;
     initialY = rect.top - phoneRect.top;
     if (e.type === 'touchstart') {
@@ -221,7 +231,7 @@ function initSingleLineLyricsEvents() {
   function drag(e) {
     if (!isDragging) return;
     e.preventDefault();
-    var clientX, clientY;
+    let clientX, clientY;
     if (e.type === 'touchmove') {
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
@@ -229,13 +239,13 @@ function initSingleLineLyricsEvents() {
       clientX = e.clientX;
       clientY = e.clientY;
     }
-    var dx = clientX - startX;
-    var dy = clientY - startY;
-    var phoneEl = document.getElementById('wechat-phone');
-    var phoneRect = phoneEl.getBoundingClientRect();
-    var panelWidth = panel.offsetWidth || 200;
-    var newX = Math.max(0, Math.min(phoneRect.width - panelWidth, initialX + dx));
-    var newY = Math.max(0, Math.min(phoneRect.height - 40, initialY + dy));
+    let dx = clientX - startX;
+    let dy = clientY - startY;
+    let phoneEl = document.getElementById('wechat-phone');
+    let phoneRect = phoneEl.getBoundingClientRect();
+    let panelWidth = panel.offsetWidth || 200;
+    let newX = Math.max(0, Math.min(phoneRect.width - panelWidth, initialX + dx));
+    let newY = Math.max(0, Math.min(phoneRect.height - 40, initialY + dy));
     panel.style.left = newX + 'px';
     panel.style.top = newY + 'px';
     panel.style.transform = 'none';
@@ -254,7 +264,7 @@ function initSingleLineLyricsEvents() {
 
 function showSingleLineLyrics() {
   createSingleLineLyrics();
-  var panel = document.getElementById('wechat-single-lyrics');
+  let panel = document.getElementById('wechat-single-lyrics');
   if (panel) {
     panel.classList.remove('hidden');
     singleLineLyricsVisible = true;
@@ -263,7 +273,7 @@ function showSingleLineLyrics() {
 }
 
 function hideSingleLineLyrics() {
-  var panel = document.getElementById('wechat-single-lyrics');
+  let panel = document.getElementById('wechat-single-lyrics');
   if (panel) {
     panel.classList.add('hidden');
     singleLineLyricsVisible = false;
@@ -277,14 +287,14 @@ function toggleSingleLineLyrics() {
     showSingleLineLyrics();
   }
   // 更新迷你播放器按钮状态
-  var lyricsBtn = document.querySelector('.wechat-music-mini-lyrics-btn');
+  let lyricsBtn = document.querySelector('.wechat-music-mini-lyrics-btn');
   if (lyricsBtn) {
     lyricsBtn.classList.toggle('active', singleLineLyricsVisible);
   }
 }
 
 function updateSingleLineLyricsText() {
-  var textEl = document.querySelector('.wechat-single-lyrics-text');
+  let textEl = document.querySelector('.wechat-single-lyrics-text');
   if (!textEl) return;
 
   if (!currentSong || !currentSong.lyrics) {
@@ -305,11 +315,11 @@ function updateSingleLineLyricsText() {
 function updateSingleLineLyricsHighlight(currentTime) {
   if (!singleLineLyricsVisible || parsedLyrics.length === 0) return;
 
-  var textEl = document.querySelector('.wechat-single-lyrics-text');
+  let textEl = document.querySelector('.wechat-single-lyrics-text');
   if (!textEl) return;
 
-  var activeIndex = -1;
-  for (var i = parsedLyrics.length - 1; i >= 0; i--) {
+  let activeIndex = -1;
+  for (let i = parsedLyrics.length - 1; i >= 0; i--) {
     if (currentTime >= parsedLyrics[i].time) {
       activeIndex = i;
       break;
@@ -323,14 +333,14 @@ function updateSingleLineLyricsHighlight(currentTime) {
   }
 }
 
-// ========== 浮动歌词面板（保留但不使用） ==========
+// ========== 浮动歌词面板 ==========
 function createFloatingLyrics() {
   if (document.getElementById('wechat-floating-lyrics')) return;
 
-  var phoneContainer = document.getElementById('wechat-phone');
+  let phoneContainer = document.getElementById('wechat-phone');
   if (!phoneContainer) return;
 
-  var html = '<div id="wechat-floating-lyrics" class="wechat-floating-lyrics hidden">' +
+  let html = '<div id="wechat-floating-lyrics" class="wechat-floating-lyrics hidden">' +
     '<div class="wechat-floating-lyrics-header">' +
       '<span class="wechat-floating-lyrics-title">歌词</span>' +
       '<button class="wechat-floating-lyrics-close">' + CLOSE_ICON + '</button>' +
@@ -343,11 +353,11 @@ function createFloatingLyrics() {
 }
 
 function initFloatingLyricsEvents() {
-  var panel = document.getElementById('wechat-floating-lyrics');
+  let panel = document.getElementById('wechat-floating-lyrics');
   if (!panel) return;
 
-  var header = panel.querySelector('.wechat-floating-lyrics-header');
-  var closeBtn = panel.querySelector('.wechat-floating-lyrics-close');
+  let header = panel.querySelector('.wechat-floating-lyrics-header');
+  let closeBtn = panel.querySelector('.wechat-floating-lyrics-close');
 
   closeBtn.addEventListener('click', function(e) {
     e.stopPropagation();
@@ -355,8 +365,8 @@ function initFloatingLyricsEvents() {
   });
 
   // 拖拽（在手机容器内）
-  var isDragging = false;
-  var startX, startY, initialX, initialY;
+  let isDragging = false;
+  let startX, startY, initialX, initialY;
 
   header.addEventListener('mousedown', startDrag);
   header.addEventListener('touchstart', startDrag, { passive: false });
@@ -364,8 +374,8 @@ function initFloatingLyricsEvents() {
   function startDrag(e) {
     if (e.target.closest('.wechat-floating-lyrics-close')) return;
     isDragging = true;
-    var rect = panel.getBoundingClientRect();
-    var phoneRect = document.getElementById('wechat-phone').getBoundingClientRect();
+    let rect = panel.getBoundingClientRect();
+    let phoneRect = document.getElementById('wechat-phone').getBoundingClientRect();
     initialX = rect.left - phoneRect.left;
     initialY = rect.top - phoneRect.top;
     if (e.type === 'touchstart') {
@@ -385,7 +395,7 @@ function initFloatingLyricsEvents() {
   function drag(e) {
     if (!isDragging) return;
     e.preventDefault();
-    var clientX, clientY;
+    let clientX, clientY;
     if (e.type === 'touchmove') {
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
@@ -393,12 +403,12 @@ function initFloatingLyricsEvents() {
       clientX = e.clientX;
       clientY = e.clientY;
     }
-    var dx = clientX - startX;
-    var dy = clientY - startY;
-    var phoneEl = document.getElementById('wechat-phone');
-    var phoneRect = phoneEl.getBoundingClientRect();
-    var newX = Math.max(0, Math.min(phoneRect.width - 280, initialX + dx));
-    var newY = Math.max(0, Math.min(phoneRect.height - 100, initialY + dy));
+    let dx = clientX - startX;
+    let dy = clientY - startY;
+    let phoneEl = document.getElementById('wechat-phone');
+    let phoneRect = phoneEl.getBoundingClientRect();
+    let newX = Math.max(0, Math.min(phoneRect.width - 280, initialX + dx));
+    let newY = Math.max(0, Math.min(phoneRect.height - 100, initialY + dy));
     panel.style.left = newX + 'px';
     panel.style.top = newY + 'px';
   }
@@ -497,10 +507,10 @@ function updateLyricsHighlight(currentTime) {
 function createMiniPlayer() {
   if (document.getElementById('wechat-music-mini')) return;
 
-  var phoneContainer = document.getElementById('wechat-phone');
+  let phoneContainer = document.getElementById('wechat-phone');
   if (!phoneContainer) return;
 
-  var html = '<div id="wechat-music-mini" class="wechat-music-mini hidden">' +
+  let html = '<div id="wechat-music-mini" class="wechat-music-mini hidden">' +
     '<div class="wechat-music-mini-btn">' +
       '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="15.5" r="2.5"/><path d="M8 17.5V6.5a1 1 0 011-1h10a1 1 0 011 1v9"/><path d="M8 10h12"/></svg>' +
     '</div>' +
@@ -522,7 +532,7 @@ function createMiniPlayer() {
       '<div class="wechat-music-mini-controls">' +
         '<button class="wechat-music-mini-play">' + PLAY_ICON_SMALL + '</button>' +
         '<button class="wechat-music-mini-mode" title="播放模式">' + MODE_LIST_ICON + '</button>' +
-        '<button class="wechat-music-mini-lyrics-btn" title="歌词">' + LYRICS_ICON + '</button>' +
+        '<button class="wechat-music-mini-lyrics-btn" title="歌词">词</button>' +
         '<button class="wechat-music-mini-playlist" title="播放列表">' + PLAYLIST_ICON + '</button>' +
         '<button class="wechat-music-mini-close">' + CLOSE_ICON + '</button>' +
       '</div>' +
@@ -537,14 +547,14 @@ function initMiniPlayerEvents() {
   if (miniPlayerInited) return;
   miniPlayerInited = true;
 
-  var mini = document.getElementById('wechat-music-mini');
-  var btn = mini.querySelector('.wechat-music-mini-btn');
-  var panel = mini.querySelector('.wechat-music-mini-panel');
-  var playBtn = mini.querySelector('.wechat-music-mini-play');
-  var modeBtn = mini.querySelector('.wechat-music-mini-mode');
-  var lyricsBtn = mini.querySelector('.wechat-music-mini-lyrics-btn');
-  var playlistBtn = mini.querySelector('.wechat-music-mini-playlist');
-  var closeBtn = mini.querySelector('.wechat-music-mini-close');
+  let mini = document.getElementById('wechat-music-mini');
+  let btn = mini.querySelector('.wechat-music-mini-btn');
+  let panel = mini.querySelector('.wechat-music-mini-panel');
+  let playBtn = mini.querySelector('.wechat-music-mini-play');
+  let modeBtn = mini.querySelector('.wechat-music-mini-mode');
+  let lyricsBtn = mini.querySelector('.wechat-music-mini-lyrics-btn');
+  let playlistBtn = mini.querySelector('.wechat-music-mini-playlist');
+  let closeBtn = mini.querySelector('.wechat-music-mini-close');
 
   btn.addEventListener('click', function(e) {
     e.stopPropagation();
@@ -583,18 +593,18 @@ function initMiniPlayerEvents() {
   });
 
   // 进度条拖动
-  var slider = mini.querySelector('.wechat-music-mini-slider');
-  var currentTimeEl = mini.querySelector('.wechat-music-mini-current');
-  var durationEl = mini.querySelector('.wechat-music-mini-duration');
-  var isSeeking = false;
+  let slider = mini.querySelector('.wechat-music-mini-slider');
+  let currentTimeEl = mini.querySelector('.wechat-music-mini-current');
+  let durationEl = mini.querySelector('.wechat-music-mini-duration');
+  let isSeeking = false;
 
   if (slider) {
     slider.addEventListener('input', function(e) {
       e.stopPropagation();
       isSeeking = true;
-      var audio = document.getElementById('wechat-music-audio');
+      let audio = document.getElementById('wechat-music-audio');
       if (audio && audio.duration) {
-        var seekTime = (slider.value / 100) * audio.duration;
+        let seekTime = (slider.value / 100) * audio.duration;
         if (currentTimeEl) {
           currentTimeEl.textContent = formatDuration(seekTime);
         }
@@ -603,7 +613,7 @@ function initMiniPlayerEvents() {
 
     slider.addEventListener('change', function(e) {
       e.stopPropagation();
-      var audio = document.getElementById('wechat-music-audio');
+      let audio = document.getElementById('wechat-music-audio');
       if (audio && audio.duration) {
         audio.currentTime = (slider.value / 100) * audio.duration;
       }
@@ -618,7 +628,7 @@ function initMiniPlayerEvents() {
   // 监听音频进度更新
   document.addEventListener('wechat-music-timeupdate', function(e) {
     if (isSeeking) return;
-    var detail = e.detail || {};
+    let detail = e.detail || {};
     if (slider && typeof detail.progress === 'number') {
       slider.value = detail.progress;
     }
@@ -638,8 +648,8 @@ function initMiniPlayerEvents() {
   });
 
   // 拖拽（在手机容器内）
-  var isDragging = false;
-  var startX, startY, initialX, initialY;
+  let isDragging = false;
+  let startX, startY, initialX, initialY;
 
   btn.addEventListener('mousedown', startDrag);
   btn.addEventListener('touchstart', startDrag, { passive: false });
@@ -647,8 +657,8 @@ function initMiniPlayerEvents() {
   function startDrag(e) {
     if (e.target.closest('.wechat-music-mini-panel')) return;
     isDragging = true;
-    var rect = mini.getBoundingClientRect();
-    var phoneRect = document.getElementById('wechat-phone').getBoundingClientRect();
+    let rect = mini.getBoundingClientRect();
+    let phoneRect = document.getElementById('wechat-phone').getBoundingClientRect();
     initialX = rect.left - phoneRect.left;
     initialY = rect.top - phoneRect.top;
     if (e.type === 'touchstart') {
@@ -667,7 +677,7 @@ function initMiniPlayerEvents() {
   function drag(e) {
     if (!isDragging) return;
     e.preventDefault();
-    var clientX, clientY;
+    let clientX, clientY;
     if (e.type === 'touchmove') {
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
@@ -675,12 +685,12 @@ function initMiniPlayerEvents() {
       clientX = e.clientX;
       clientY = e.clientY;
     }
-    var dx = clientX - startX;
-    var dy = clientY - startY;
-    var phoneEl = document.getElementById('wechat-phone');
-    var phoneRect = phoneEl.getBoundingClientRect();
-    var newX = Math.max(0, Math.min(phoneRect.width - 50, initialX + dx));
-    var newY = Math.max(0, Math.min(phoneRect.height - 50, initialY + dy));
+    let dx = clientX - startX;
+    let dy = clientY - startY;
+    let phoneEl = document.getElementById('wechat-phone');
+    let phoneRect = phoneEl.getBoundingClientRect();
+    let newX = Math.max(0, Math.min(phoneRect.width - 50, initialX + dx));
+    let newY = Math.max(0, Math.min(phoneRect.height - 50, initialY + dy));
     mini.style.left = newX + 'px';
     mini.style.top = newY + 'px';
     mini.style.right = 'auto';
@@ -714,7 +724,7 @@ function cyclePlayMode() {
 
 // 更新模式按钮图标
 function updateModeButtonIcon() {
-  var modeBtn = document.querySelector('.wechat-music-mini-mode');
+  let modeBtn = document.querySelector('.wechat-music-mini-mode');
   if (!modeBtn) return;
 
   if (playMode === 'single') {
@@ -728,21 +738,225 @@ function updateModeButtonIcon() {
 
 // 播放下一首
 function playNext() {
-  if (playlist.length === 0) return;
-
-  var nextIndex;
+  // 单曲循环模式：重新播放当前歌曲
   if (playMode === 'single') {
-    nextIndex = currentPlayIndex;
-  } else if (playMode === 'random') {
-    nextIndex = Math.floor(Math.random() * playlist.length);
-  } else {
-    nextIndex = (currentPlayIndex + 1) % playlist.length;
+    let audio = document.getElementById('wechat-music-audio');
+    if (audio) {
+      audio.currentTime = 0;
+      audio.play().then(function() {
+        isPlaying = true;
+        let playBtn = document.getElementById('wechat-music-player-play');
+        if (playBtn) playBtn.innerHTML = PAUSE_ICON;
+        updateMiniPlayerState();
+      }).catch(function(e) {
+        console.error('[可乐] 单曲循环播放失败:', e);
+      });
+    }
+    return;
   }
 
+  // 随机模式：真正的随机推歌
+  if (playMode === 'random') {
+    fetchRandomSong();
+    return;
+  }
+
+  // 列表循环模式
+  if (playlist.length === 0) return;
+  let nextIndex = (currentPlayIndex + 1) % playlist.length;
+
   if (nextIndex >= 0 && nextIndex < playlist.length) {
-    var song = playlist[nextIndex];
+    let song = playlist[nextIndex];
     currentPlayIndex = nextIndex;
     playMusic(song.id, song.platform, song.name, song.artist);
+    renderPlaylist();
+  }
+}
+
+// 随机推歌：从API搜索并播放随机歌曲
+// retryCount: 内部重试计数，避免无限循环
+async function fetchRandomSong(retryCount) {
+  retryCount = retryCount || 0;
+  let maxRetries = 3;
+
+  // 构建搜索关键词
+  let keyword = getRandomKeyword();
+
+  console.log('[可乐] 随机推歌，搜索关键词:', keyword);
+
+  // 只在第一次显示提示
+  if (!hasShownRandomToast) {
+    showToast('正在为你随机推歌...');
+    hasShownRandomToast = true;
+  }
+
+  try {
+    let results = await searchMusic(keyword);
+
+    if (!results || results.length === 0) {
+      // 如果搜索失败，换个关键词重试
+      keyword = RANDOM_KEYWORDS[Math.floor(Math.random() * RANDOM_KEYWORDS.length)];
+      results = await searchMusic(keyword);
+    }
+
+    if (!results || results.length === 0) {
+      // 静默重试
+      if (retryCount < maxRetries) {
+        console.log('[可乐] 随机推歌搜索无结果，重试中...', retryCount + 1);
+        return fetchRandomSong(retryCount + 1);
+      }
+      console.error('[可乐] 随机推歌失败，已达最大重试次数');
+      return;
+    }
+
+    // 过滤掉已播放过的歌曲
+    let unplayedSongs = results.filter(function(song) {
+      let songKey = song.platform + '_' + song.id;
+      return !playedSongIds.has(songKey);
+    });
+
+    // 如果全都播放过，清空记录重新开始
+    if (unplayedSongs.length === 0) {
+      playedSongIds.clear();
+      unplayedSongs = results;
+    }
+
+    // 从未播放的歌曲中随机选一首
+    let randomIndex = Math.floor(Math.random() * unplayedSongs.length);
+    let song = unplayedSongs[randomIndex];
+
+    // 记录已播放
+    let songKey = song.platform + '_' + song.id;
+    playedSongIds.add(songKey);
+
+    // 限制记录数量，避免内存占用过大
+    if (playedSongIds.size > 500) {
+      let arr = Array.from(playedSongIds);
+      playedSongIds = new Set(arr.slice(-300));
+    }
+
+    console.log('[可乐] 随机推歌:', song.name, '-', song.artist);
+
+    // 播放歌曲
+    playMusic(song.id, song.platform, song.name, song.artist);
+
+  } catch (err) {
+    console.error('[可乐] 随机推歌失败:', err);
+    // 静默重试，不显示错误提示
+    if (retryCount < maxRetries) {
+      console.log('[可乐] 随机推歌出错，重试中...', retryCount + 1);
+      return fetchRandomSong(retryCount + 1);
+    }
+  }
+}
+
+// 获取随机搜索关键词
+function getRandomKeyword() {
+  let rand = Math.random();
+
+  // 70%概率从聊天记录提取关键词
+  if (rand < 0.7) {
+    let chatKeyword = extractKeywordFromChat();
+    if (chatKeyword) {
+      console.log('[可乐] 使用聊天关键词推歌:', chatKeyword);
+      return chatKeyword;
+    }
+  }
+
+  // 20%概率使用当前歌曲的歌手名搜索类似歌曲
+  if (rand < 0.9 && currentSong && currentSong.artist) {
+    return currentSong.artist;
+  }
+
+  // 10%概率从关键词库随机选择
+  return RANDOM_KEYWORDS[Math.floor(Math.random() * RANDOM_KEYWORDS.length)];
+}
+
+// 从最近聊天记录中提取关键词
+function extractKeywordFromChat() {
+  try {
+    // 获取当前联系人
+    let settings = window.wechatGetSettings?.() || {};
+    let contacts = settings.contacts || [];
+    let currentIndex = window.wechatCurrentChatIndex;
+
+    if (typeof currentIndex !== 'number' || currentIndex < 0 || !contacts[currentIndex]) {
+      return null;
+    }
+
+    let contact = contacts[currentIndex];
+    let chatHistory = contact.chatHistory || [];
+
+    if (chatHistory.length === 0) return null;
+
+    // 获取最近10条消息
+    let recentMessages = chatHistory.slice(-10);
+
+    // 情绪/场景关键词映射
+    let emotionKeywords = {
+      // 情绪类
+      '开心': ['开心', '快乐', '欢快', '甜蜜'],
+      '伤感': ['难过', '伤心', '哭', '眼泪', '失恋', '分手', '想你', '想念'],
+      '治愈': ['累', '疲惫', '辛苦', '压力', '烦', '焦虑', '放松'],
+      '浪漫': ['喜欢', '爱你', '爱', '在一起', '亲爱', '宝贝', '甜'],
+      '励志': ['加油', '努力', '奋斗', '坚持', '相信'],
+      '怀旧': ['以前', '小时候', '曾经', '回忆', '那时候'],
+      // 场景类
+      '夜晚': ['晚安', '睡觉', '睡了', '夜', '深夜', '失眠'],
+      '清晨': ['早安', '早上', '起床', '早'],
+      '下雨': ['雨', '下雨', '阴天'],
+      '工作': ['上班', '工作', '加班', '开会', '老板'],
+      '吃饭': ['吃', '饿', '美食', '好吃', '火锅', '奶茶'],
+      // 风格类
+      '古风': ['古风', '汉服', '仙', '诗'],
+      '说唱': ['rap', 'Rap', 'RAP', '说唱', 'diss'],
+      '摇滚': ['摇滚', 'rock', '嗨', '燃']
+    };
+
+    // 从消息中提取匹配的关键词
+    let matchedCategories = [];
+    recentMessages.forEach(function(msg) {
+      if (!msg.content || msg.isRecalled) return;
+      let content = msg.content.toLowerCase();
+
+      Object.keys(emotionKeywords).forEach(function(category) {
+        let keywords = emotionKeywords[category];
+        for (let i = 0; i < keywords.length; i++) {
+          if (content.includes(keywords[i].toLowerCase())) {
+            matchedCategories.push(category);
+            break;
+          }
+        }
+      });
+    });
+
+    // 如果找到匹配的情绪/场景，随机返回一个
+    if (matchedCategories.length > 0) {
+      return matchedCategories[Math.floor(Math.random() * matchedCategories.length)];
+    }
+
+    // 没有匹配到特定情绪，尝试提取消息中的名词作为搜索词
+    // 提取最后一条非特殊消息的内容
+    for (let i = recentMessages.length - 1; i >= 0; i--) {
+      let msg = recentMessages[i];
+      if (!msg.content || msg.isRecalled) continue;
+      if (msg.content.startsWith('[') && msg.content.includes(':')) continue; // 跳过特殊消息
+
+      // 简单提取2-4字的词组
+      let content = msg.content.replace(/[，。！？、：；""''【】\[\]]/g, ' ');
+      let words = content.split(/\s+/).filter(function(w) {
+        return w.length >= 2 && w.length <= 4 && !/^\d+$/.test(w);
+      });
+
+      if (words.length > 0) {
+        return words[Math.floor(Math.random() * words.length)];
+      }
+    }
+
+    return null;
+  } catch (e) {
+    console.error('[可乐] 提取聊天关键词失败:', e);
+    return null;
   }
 }
 
@@ -750,10 +964,10 @@ function playNext() {
 function createPlaylistPanel() {
   if (document.getElementById('wechat-music-playlist-panel')) return;
 
-  var phoneContainer = document.getElementById('wechat-phone');
+  let phoneContainer = document.getElementById('wechat-phone');
   if (!phoneContainer) return;
 
-  var html = '<div id="wechat-music-playlist-panel" class="wechat-music-playlist-panel hidden">' +
+  let html = '<div id="wechat-music-playlist-panel" class="wechat-music-playlist-panel hidden">' +
     '<div class="wechat-playlist-header">' +
       '<span class="wechat-playlist-title">播放列表</span>' +
       '<button class="wechat-playlist-clear">清空</button>' +
@@ -767,12 +981,12 @@ function createPlaylistPanel() {
 }
 
 function initPlaylistPanelEvents() {
-  var panel = document.getElementById('wechat-music-playlist-panel');
+  let panel = document.getElementById('wechat-music-playlist-panel');
   if (!panel) return;
 
-  var closeBtn = panel.querySelector('.wechat-playlist-close');
-  var clearBtn = panel.querySelector('.wechat-playlist-clear');
-  var content = panel.querySelector('.wechat-playlist-content');
+  let closeBtn = panel.querySelector('.wechat-playlist-close');
+  let clearBtn = panel.querySelector('.wechat-playlist-clear');
+  let content = panel.querySelector('.wechat-playlist-content');
 
   closeBtn.addEventListener('click', function(e) {
     e.stopPropagation();
@@ -788,10 +1002,10 @@ function initPlaylistPanelEvents() {
   });
 
   content.addEventListener('click', function(e) {
-    var item = e.target.closest('.wechat-playlist-item');
+    let item = e.target.closest('.wechat-playlist-item');
     if (!item) return;
 
-    var index = parseInt(item.dataset.index);
+    let index = parseInt(item.dataset.index);
     if (isNaN(index)) return;
 
     if (e.target.closest('.wechat-playlist-item-del')) {
@@ -806,7 +1020,7 @@ function initPlaylistPanelEvents() {
     } else {
       // 播放选中歌曲
       currentPlayIndex = index;
-      var song = playlist[index];
+      let song = playlist[index];
       playMusic(song.id, song.platform, song.name, song.artist);
       renderPlaylist();
     }
@@ -815,7 +1029,7 @@ function initPlaylistPanelEvents() {
 
 function showPlaylistPanel() {
   createPlaylistPanel();
-  var panel = document.getElementById('wechat-music-playlist-panel');
+  let panel = document.getElementById('wechat-music-playlist-panel');
   if (panel) {
     panel.classList.remove('hidden');
     renderPlaylist();
@@ -823,14 +1037,14 @@ function showPlaylistPanel() {
 }
 
 function hidePlaylistPanel() {
-  var panel = document.getElementById('wechat-music-playlist-panel');
+  let panel = document.getElementById('wechat-music-playlist-panel');
   if (panel) {
     panel.classList.add('hidden');
   }
 }
 
 function togglePlaylistPanel() {
-  var panel = document.getElementById('wechat-music-playlist-panel');
+  let panel = document.getElementById('wechat-music-playlist-panel');
   if (panel && !panel.classList.contains('hidden')) {
     hidePlaylistPanel();
   } else {
@@ -839,7 +1053,7 @@ function togglePlaylistPanel() {
 }
 
 function renderPlaylist() {
-  var content = document.querySelector('.wechat-playlist-content');
+  let content = document.querySelector('.wechat-playlist-content');
   if (!content) return;
 
   if (playlist.length === 0) {
@@ -847,10 +1061,10 @@ function renderPlaylist() {
     return;
   }
 
-  var html = '';
-  for (var i = 0; i < playlist.length; i++) {
-    var song = playlist[i];
-    var isActive = i === currentPlayIndex;
+  let html = '';
+  for (let i = 0; i < playlist.length; i++) {
+    let song = playlist[i];
+    let isActive = i === currentPlayIndex;
     html += '<div class="wechat-playlist-item' + (isActive ? ' active' : '') + '" data-index="' + i + '">' +
       '<div class="wechat-playlist-item-info">' +
         '<span class="wechat-playlist-item-name">' + escapeHtml(song.name) + '</span>' +
@@ -865,11 +1079,26 @@ function renderPlaylist() {
 // 添加到播放列表
 function addToPlaylist(song) {
   // 检查是否已存在
-  var exists = playlist.some(function(s) {
-    return s.id === song.id && s.platform === song.platform;
-  });
-  if (!exists) {
+  let existIndex = -1;
+  for (let i = 0; i < playlist.length; i++) {
+    if (playlist[i].id === song.id && playlist[i].platform === song.platform) {
+      existIndex = i;
+      break;
+    }
+  }
+
+  if (existIndex >= 0) {
+    // 已存在，移到最后（最新播放）
+    playlist.splice(existIndex, 1);
     playlist.push(song);
+  } else {
+    // 不存在，添加到最后
+    playlist.push(song);
+  }
+
+  // 限制最多10首，删除最早的
+  while (playlist.length > 10) {
+    playlist.shift();
   }
 }
 
@@ -883,11 +1112,11 @@ function showMiniPlayer() {
 }
 
 function hideMiniPlayer() {
-  var mini = document.getElementById('wechat-music-mini');
+  let mini = document.getElementById('wechat-music-mini');
   if (mini) {
     mini.classList.add('hidden');
     miniPlayerExpanded = false;
-    var panel = mini.querySelector('.wechat-music-mini-panel');
+    let panel = mini.querySelector('.wechat-music-mini-panel');
     if (panel) panel.classList.add('hidden');
   }
   hideSingleLineLyrics();
@@ -980,7 +1209,7 @@ export async function playMusic(id, platform, name, artist) {
   // 添加到播放列表
   addToPlaylist(song);
   // 更新当前播放索引
-  for (var i = 0; i < playlist.length; i++) {
+  for (let i = 0; i < playlist.length; i++) {
     if (playlist[i].id === song.id && playlist[i].platform === song.platform) {
       currentPlayIndex = i;
       break;
@@ -988,12 +1217,12 @@ export async function playMusic(id, platform, name, artist) {
   }
 
   const player = document.getElementById('wechat-music-player');
-  var audio = document.getElementById('wechat-music-audio');
-  var playBtn = document.getElementById('wechat-music-player-play');
+  let audio = document.getElementById('wechat-music-audio');
+  let playBtn = document.getElementById('wechat-music-player-play');
 
   // 如果 audio 元素不存在，动态创建一个
   if (!audio) {
-    var phoneContainer = document.getElementById('wechat-phone');
+    let phoneContainer = document.getElementById('wechat-phone');
     if (phoneContainer) {
       audio = document.createElement('audio');
       audio.id = 'wechat-music-audio';
@@ -1002,10 +1231,11 @@ export async function playMusic(id, platform, name, artist) {
       // 添加事件监听器
       audio.addEventListener('ended', function() {
         isPlaying = false;
-        var btn = document.getElementById('wechat-music-player-play');
+        let btn = document.getElementById('wechat-music-player-play');
         if (btn) btn.innerHTML = PLAY_ICON;
         updateMiniPlayerState();
-        if (playlist.length > 0) {
+        // 根据播放模式自动播放下一首（单曲循环或有播放列表时）
+        if (playMode === 'single' || playlist.length > 0) {
           playNext();
         }
       });
@@ -1014,7 +1244,7 @@ export async function playMusic(id, platform, name, artist) {
         updateLyricsHighlight(audio.currentTime);
         updateSingleLineLyricsHighlight(audio.currentTime);
         // 派发进度更新事件给迷你播放器
-        var progress = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+        let progress = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
         document.dispatchEvent(new CustomEvent('wechat-music-timeupdate', {
           detail: {
             currentTime: audio.currentTime,
@@ -1134,7 +1364,7 @@ export function initMusicEvents() {
   const searchInput = document.getElementById('wechat-music-search-input');
   let searchTimeout = null;
 
-  var doSearch = async function(keyword) {
+  let doSearch = async function(keyword) {
     if (!keyword) return;
     showLoading();
     try {
@@ -1181,8 +1411,8 @@ export function initMusicEvents() {
     const playBtn = document.getElementById('wechat-music-player-play');
     if (playBtn) playBtn.innerHTML = PLAY_ICON;
     updateMiniPlayerState();
-    // 根据播放模式自动播放下一首
-    if (playlist.length > 0) {
+    // 根据播放模式自动播放下一首（单曲循环或有播放列表时）
+    if (playMode === 'single' || playlist.length > 0) {
       playNext();
     }
   });
@@ -1192,7 +1422,7 @@ export function initMusicEvents() {
     updateLyricsHighlight(audio.currentTime);
     updateSingleLineLyricsHighlight(audio.currentTime);
     // 派发进度更新事件给迷你播放器
-    var progress = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+    let progress = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
     document.dispatchEvent(new CustomEvent('wechat-music-timeupdate', {
       detail: {
         currentTime: audio.currentTime,
@@ -1214,7 +1444,7 @@ export async function aiShareMusic(keyword) {
   if (!keyword || !keyword.trim()) return null;
 
   try {
-    var results = await searchMusic(keyword);
+    let results = await searchMusic(keyword);
     if (results && results.length > 0) {
       // 返回第一个搜索结果
       return results[0];

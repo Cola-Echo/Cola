@@ -3,7 +3,7 @@
  */
 
 import { getContext } from '../../../extensions.js';
-import { getSettings, getUserStickers, MEME_PROMPT_TEMPLATE } from './config.js';
+import { getSettings, getUserStickers, MEME_PROMPT_TEMPLATE, LISTEN_TOGETHER_PROMPT_TEMPLATE } from './config.js';
 import { sleep } from './utils.js';
 
 function normalizeApiBaseUrl(url) {
@@ -385,6 +385,7 @@ function buildStickerPrompt(settings) {
 可用表情（共${stickers.length}个）：${stickerList}${stickers.length > 30 ? '...' : ''}
 - 表情消息必须单独一条，用 ||| 分隔
 - 适度使用，不要每条都发表情
+- 【绝对禁止】只能使用上面列表中的名称或序号！必须完全一致！禁止自己编造、修改、添加后缀！
 示例：好的呀|||[表情:开心]
 `;
 }
@@ -667,7 +668,16 @@ export function buildMessages(contact, userMessage) {
     });
   });
 
-  messages.push({ role: 'user', content: userMessage });
+  // 检查是否需要添加用户消息（避免重复）
+  // 如果最后一条消息已经是相同的用户消息，就不再重复添加
+  const lastAddedMsg = messages[messages.length - 1];
+  const isAlreadyAdded = lastAddedMsg &&
+    lastAddedMsg.role === 'user' &&
+    lastAddedMsg.content === userMessage;
+
+  if (!isAlreadyAdded) {
+    messages.push({ role: 'user', content: userMessage });
+  }
 
   return messages;
 }
@@ -958,7 +968,7 @@ export async function callVideoAI(contact, userMessage, callMessages = [], initi
 - 一般输出2-4句话
 - 用小括号描述画面场景，这是用户看到的视频画面
 - 【禁止】括号内不准使用任何人称代词（你、我、她、他）！这是摄像头视角的画面描述！
-- 【禁止】视频通话中不要使用任何表情包格式如 [表情:xxx]，直接说话和描述动作即可
+- 【禁止】视频通话中不要使用任何表情包格式，包括 [表情:xxx] 和 <meme>xxx</meme>，直接说话和描述动作即可
 - 括号内只描述画面：人物动作、表情、背景、光线等
 
 【正确示例 - 注意 ||| 分隔符】
@@ -987,7 +997,7 @@ export async function callVideoAI(contact, userMessage, callMessages = [], initi
 - 一般输出2-4句话
 - 用小括号描述画面场景，这是用户看到的视频画面
 - 【禁止】括号内不准使用任何人称代词（你、我、她、他）！这是摄像头视角的画面描述！
-- 【禁止】视频通话中不要使用任何表情包格式如 [表情:xxx]，直接说话和描述动作即可
+- 【禁止】视频通话中不要使用任何表情包格式，包括 [表情:xxx] 和 <meme>xxx</meme>，直接说话和描述动作即可
 - 括号内只描述画面：人物动作、表情、背景、光线等
 
 【正确示例 - 注意 ||| 分隔符】
@@ -1070,6 +1080,111 @@ ${videoCallPrompt}`;
         messages: messages,
         temperature: 1,
         max_tokens: 8196
+      })
+    },
+    { maxRetries: 3 }
+  );
+
+  if (!response.ok) {
+    throw new Error(await formatApiError(response, {}));
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '...';
+}
+
+// 一起听场景中调用 AI（使用专门的一起听提示词，只允许纯文字回复）
+export async function callListenTogetherAI(contact, userMessage, listenMessages = [], song = null) {
+  // 获取 API 配置
+  let apiUrl, apiKey, apiModel;
+
+  if (contact.useCustomApi) {
+    apiUrl = contact.customApiUrl || '';
+    apiKey = contact.customApiKey || '';
+    apiModel = contact.customModel || '';
+
+    const globalConfig = getApiConfig();
+    if (!apiUrl) apiUrl = globalConfig.url;
+    if (!apiKey) apiKey = globalConfig.key;
+    if (!apiModel) apiModel = globalConfig.model;
+  } else {
+    const globalConfig = getApiConfig();
+    apiUrl = globalConfig.url;
+    apiKey = globalConfig.key;
+    apiModel = globalConfig.model;
+  }
+
+  if (!apiUrl) {
+    throw new Error('请先配置 API 地址');
+  }
+
+  if (!apiModel) {
+    throw new Error('请先选择模型');
+  }
+
+  // 构建一起听专用的提示词（替换歌曲信息占位符）
+  let listenPrompt = LISTEN_TOGETHER_PROMPT_TEMPLATE
+    .replace('{{song_name}}', song?.name || '未知歌曲')
+    .replace('{{song_artist}}', song?.artist || '未知歌手');
+
+  // 构建系统提示词（在原有角色设定基础上添加一起听场景，禁用表情包/音乐分享/通话请求）
+  const baseSystemPrompt = buildSystemPrompt(contact, { allowStickers: false, allowMusicShare: false, allowCallRequests: false });
+  const systemPrompt = `${baseSystemPrompt}
+
+【当前场景：一起听歌中】
+${listenPrompt}`;
+
+  // 构建消息
+  const messages = [{ role: 'system', content: systemPrompt }];
+
+  // 添加聊天历史记录（最近10条）
+  const chatHistory = contact.chatHistory || [];
+  const recentHistory = chatHistory.slice(-10);
+  recentHistory.forEach(msg => {
+    if (msg.isRecalled) {
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: '[用户撤回了一条消息]'
+      });
+      return;
+    }
+    messages.push({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    });
+  });
+
+  // 添加一起听开始标记
+  messages.push({ role: 'user', content: `[用户邀请你一起听歌：《${song?.name || '未知歌曲'}》- ${song?.artist || '未知歌手'}]` });
+
+  // 添加一起听中的历史消息
+  listenMessages.forEach(msg => {
+    messages.push({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    });
+  });
+
+  // 添加当前消息
+  messages.push({ role: 'user', content: userMessage });
+
+  const chatUrl = apiUrl.replace(/\/+$/, '') + '/chat/completions';
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
+  const response = await fetchWithRetry(
+    chatUrl,
+    {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        model: apiModel,
+        messages: messages,
+        temperature: 0.9,
+        max_tokens: 1024
       })
     },
     { maxRetries: 3 }

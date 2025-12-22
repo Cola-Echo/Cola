@@ -1,5 +1,5 @@
 /**
- * 配置、常量、默认设�?
+ * 配置、常量、默认设置
  */
 
 import { extension_settings } from '../../../extensions.js';
@@ -7,19 +7,19 @@ import { extension_settings } from '../../../extensions.js';
 // 插件名称
 export const extensionName = 'wechat-simulator';
 
-// Meme 表情包列表（catbox.moe�?
+// Meme 表情包列表（catbox.moe）
 export const MEME_STICKERS = [
   '告到小狗法庭iaordo.jpg',
   '小猫伸爪f6nqiq.gif',
-  '谢谢宝贝我现在那里好�?62o48.jpg',
-  '阿弥陀�?cwm60.jpg',
+  '谢谢宝贝我现在那里好硬862o48.jpg',
+  '阿弥陀佛9cwm60.jpg',
   '你好美你长得像我爱人hmpkra.jpg',
   '我老实了i3ws7s.jpg',
   '蹭蹭你贴贴你1of415.gif',
   '喜欢你egvwqb.jpg',
   '我在哭t343od.jpg',
-  '不干活就没饭�?qnrgh.jpg',
-  '擦眼�?gno7e.jpg',
+  '不干活就没饭吃2qnrgh.jpg',
+  '擦眼泪9gno7e.jpg',
   '小狗摇尾巴hmdj2k.gif',
   '爱你舔舔你ola7gd.jpg',
   '不高兴x6lv1t.jpg',
@@ -47,7 +47,7 @@ export const MEME_STICKERS = [
   '目移69jgvg.jpg',
   '上钩了cormmk.jpg',
   '无语了我哭了0awxky.jpg',
-  '你嫌我丢�?d71mm.jpg',
+  '你嫌我丢人8d71mm.jpg',
   '笑不出来xkop14.jpg',
   '别欺负小狗啊u4t3t3.jpg',
   '他妈的真是被看扁了ime5rz.jpg',
@@ -67,7 +67,7 @@ export const MEME_STICKERS = [
   '失望eug1e6.jpeg',
   '狂犬病发作xb3naz.jpg',
   '我是狗吗ma9azs.jpg',
-  '一笑了�?llb46.jpg',
+  '一笑了之9llb46.jpg',
   '装可怜lcglz1.jpg',
   '小狗撒欢6j6y6a.gif',
   '狗舔舔esw5e2.gif',
@@ -88,7 +88,7 @@ export const MEME_STICKERS = [
   '被逮捕了uzeywu.jpg',
   '看呆mqnepo.jpg',
   '我的理性在远去t9e065.jpg',
-  '偷亲一�?jgvb1.gif',
+  '偷亲一口1jgvb1.gif',
   '震惊v5n2ve.jpg',
   '爷怒了49r80k.jpg',
   '愤怒伤心e7lr3s.jpg',
@@ -102,19 +102,19 @@ export const MEME_STICKERS = [
   '你太可爱我喜欢你ubhai8.jpg',
   '惊吓tp9uvd.jpg',
   '脸红星星眼dsfs7o.jpg',
-  '被揍了哭�?1x5zq.jpg',
+  '被揍了哭哭81x5zq.jpg',
   '嘬嘬fg5gx3.jpg',
-  '超大声哭�?86h5v.jpg',
+  '超大声哭哭186h5v.jpg',
   '是的主人yvrgdc.jpg'
 ];
 
 // Meme 表情包提示词模板
 export const MEME_PROMPT_TEMPLATE = `##【必须使用】表情包功能
-【重要】你【必须】经常发送表情包！每2-3条回复至少发一个表情包�?
+【重要】你【必须】经常发送表情包！每2-3条回复至少发一个表情包！
 
-使用规则�?
-- 表情包【必须】单独一条消息，�?||| 分隔
-- 格式�?meme>文件�?/meme>
+使用规则：
+- 表情包【必须】单独一条消息，用 ||| 分隔
+- 格式：<meme>文件名</meme>
 - 只能从下面列表选择，不能编造文件名
 
 可用表情包列表：
@@ -124,21 +124,54 @@ ${MEME_STICKERS.join('\n')}
 
 【正确示例】：
 好想你|||<meme>小狗摇尾巴hmdj2k.gif</meme>
-哈哈哈笑死|||<meme>小熊跳舞122o4w.gif</meme>|||你太搞笑�?
-<meme>喜欢你egvwqb.jpg</meme>|||我真的好喜欢�?
+哈哈哈笑死|||<meme>小熊跳舞122o4w.gif</meme>|||你太搞笑了
+<meme>喜欢你egvwqb.jpg</meme>|||我真的好喜欢你
 
-【错误示�?- 绝对禁止】：
-好想�?meme>xxx</meme> �?错误！表情包没有用|||分开
-<meme>不存在的表情.jpg</meme> �?错误！编造了不存在的文件�?
+【错误示例 - 绝对禁止】：
+好想你<meme>xxx</meme> ← 错误！表情包没有用|||分开
+<meme>不存在的表情.jpg</meme> ← 错误！编造了不存在的文件名
 
 记住：表情包让聊天更生动，【必须】经常使用！`;
+
+// 一起听功能提示词模板
+export const LISTEN_TOGETHER_PROMPT_TEMPLATE = `##【一起听歌场景】
+你正在和用户一起听歌，用你自己的方式自然地聊天。
+
+当前播放歌曲：{{song_name}} - {{song_artist}}
+
+【核心要求 - 必须遵守】
+1. 只能发送纯文字消息，像朋友之间真实聊天一样
+2. 保持你的性格特点，用符合你角色设定的方式说话
+3. 每次回复请发送2-4条消息，用换行分隔，让对话更有层次感
+4. 可以聊歌曲、聊心情、聊任何话题，自然就好
+5. 发表对歌曲的看法时，要结合你的角色性格和经历
+
+【绝对禁止 - 违反会被过滤】
+- 禁止使用小括号描述动作或语气，如（xxx）
+- 禁止 [表情:xxx] [照片:xxx] [语音:xxx] [音乐:xxx]
+- 禁止 [回复:xxx] 引用格式
+- 禁止 <meme>xxx</meme>
+- 禁止任何非文字格式
+
+【换歌格式】
+如果想换歌：[换歌:歌名]
+
+【自然聊天示例】
+我来了~
+这首歌好好听欸
+你怎么会想到点这首
+
+或者：
+终于等到你邀请我一起听了
+这歌我之前也有在听
+感觉特别适合现在这个氛围`;
 
 // 默认设置
 export const defaultSettings = {
   darkMode: true,
 
   /**
-   * 【自动注入提示词�?
+   * 【自动注入提示词】
    * 开启后会自动将微信消息格式提示词注入到作者注释中
    * 提示词模板见下方 authorNoteTemplate
    * 如需自定义格式，修改 authorNoteTemplate 即可
@@ -151,7 +184,7 @@ export const defaultSettings = {
   phonePosition: null,
   userAvatar: '',
   wechatId: 'SillyTavern',
-  // 收藏/世界�?用户设定
+  // 收藏/世界书/用户设定
   selectedLorebooks: [],
   userPersonas: [],
 
@@ -174,16 +207,20 @@ export const defaultSettings = {
   groupSelectedModel: '',
   groupModelList: [],
 
-  // 上下文设�?
+  // 上下文设置
   contextEnabled: false,
   contextLevel: 5,
   contextTags: [],
   walletAmount: '5773.89',
+  // 支付密码（6位数字）
+  paymentPassword: '666666',
+  // 自定义总结模板（留空则使用默认）
+  customSummaryTemplate: '',
 
   /**
-   * 【哈基米破限�?
+   * 【哈基米破限】
    * 针对 Gemini 2.5 Pro 等模型的输出截断问题
-   * 开启后会在系统提示词头部注入一�?创作沙盒"提示�?
+   * 开启后会在系统提示词头部注入一段"创作沙盒"提示词
    * 帮助解除模型的自我审查，让输出更完整
    */
   hakimiBreakLimit: false,
@@ -199,65 +236,65 @@ export const defaultSettings = {
   // 错误日志
   errorLogs: [],
 
-  // 表情（用户添加的单个表情�?
+  // 表情（用户添加的单个表情）
   stickers: [],
 
-  // 用户表情开�?
+  // 用户表情开关
   userStickersEnabled: true,
 
-  // Meme 表情包功能开�?
+  // Meme 表情包功能开关
   memeStickersEnabled: false,
 
   /**
-   * 【群聊提示词注入�?
-   * 开启后会将 groupAuthorNote 注入到群聊系统提示词�?
+   * 【群聊提示词注入】
+   * 开启后会将 groupAuthorNote 注入到群聊系统提示词中
    * 如需自定义群聊格式，修改下方 groupAuthorNote 即可
    */
   groupAutoInjectPrompt: true,
   groupAuthorNote: `[群聊回复格式指南]
-这是一个微信群聊场景，你需要扮演群内的角色进行回复�?
+这是一个微信群聊场景，你需要扮演群内的角色进行回复。
 
-【核心规则�?
-1. 每个角色只能使用自己的专属设定，不能使用其他角色的设�?
+【核心规则】
+1. 每个角色只能使用自己的专属设定，不能使用其他角色的设定
 2. 每个角色只扮演自己，不能代替其他角色说话
-3. 使用 [角色名]: 内容 的格式回�?
-4. 多个角色回复时，�?||| 分隔
+3. 使用 [角色名]: 内容 的格式回复
+4. 多个角色回复时，用 ||| 分隔
 5. 同一角色可以发送多条消息，也用 ||| 分隔
 
-【消息风格�?
-- 每条消息保持简短自然，像真实微信聊天一样（1-3句话为宜�?
-- 可以使用表情符号增加表现�?
+【消息风格】
+- 每条消息保持简短自然，像真实微信聊天一样（1-3句话为宜）
+- 可以使用表情符号增加表现力
 - 保持角色性格，让对话有趣生动
 - 角色之间可以互动、吐槽、附和、反驳等
 
-【回复要求�?
-- 根据聊天内容自然判断哪些角色会回复，不需要所有人都说�?
+【回复要求】
+- 根据聊天内容自然判断哪些角色会回复，不需要所有人都说话
 - 语音消息格式：[角色名]: [语音:内容]
-- 语音消息必须独立发�?
+- 语音消息必须独立发送
 
-示例�?
-[角色A]: 你说得对|||[角色B]: 我不太同意诶|||[角色A]: 为什么啊�?
+示例：
+[角色A]: 你说得对|||[角色B]: 我不太同意诶|||[角色A]: 为什么啊？
 [角色A]: [语音:哈哈哈笑死我了]
 [角色B]: @角色A 你是不是傻|||开玩笑的啦`,
   userGroupAuthorNote: '',  // 用户自定义群聊提示词（界面显示用，留空则使用内置模板）
 };
 
-// 作者注释模�?
-export const authorNoteTemplate = `【可乐不加冰 消息格式指南】每次必须使用以下格式输出消息内容，不用生成除此之外的任何其他内容和文本。不得省略任何格式部分�?
+// 作者注释模板
+export const authorNoteTemplate = `【可乐不加冰 消息格式指南】每次必须使用以下格式输出消息内容，不用生成除此之外的任何其他内容和文本。不得省略任何格式部分。
 
-【核心规�?- 必须遵守�?
-- 每条消息都是独立的，�?||| 分隔多条消息
-- 保持消息简短自然，像真实微信聊天（1-3句话为宜�?
-- 绝对禁止代替{{user}}发言，严禁替{{user}}回复消息，严禁扮演{{user}}，严禁捏造输出{{user}}的消�?
+【核心规则 - 必须遵守】
+- 每条消息都是独立的，用 ||| 分隔多条消息
+- 保持消息简短自然，像真实微信聊天（1-3句话为宜）
+- 绝对禁止代替{{user}}发言，严禁替{{user}}回复消息，严禁扮演{{user}}，严禁捏造输出{{user}}的消息
 - 只输出角色的消息内容，禁止添加任何旁白、心理描写或场景说明
 
-【消息数量规�?- 重要�?
-- 根据情境动态调整消息数量，通常1-7条不�?
-- 禁止固定每次回复的消息数�?
+【消息数量规则 - 重要】
+- 根据情境动态调整消息数量，通常1-7条不等
+- 禁止固定每次回复的消息数量
 - 模拟真实聊天节奏
 
-【消息类型格式�?
-- 普通消息：直接写内�?
+【消息类型格式】
+- 普通消息：直接写内容
 - 语音消息：[语音:语音内容文字]
 - 照片/图片/视频/自拍：[照片:媒体描述]
 - 表情包回复：[表情:序号或名称]
@@ -265,27 +302,27 @@ export const authorNoteTemplate = `【可乐不加冰 消息格式指南】每�
 - 撤回消息：[撤回]
 - 引用回复：[回复:被引用的关键词]回复内容
 
-【多条消息示例�?
+【多条消息示例】
 你好|||最近怎么样？
 哈哈|||太好笑了|||笑死我了
 [语音:好想你啊]|||什么时候有空？
 
-【媒体消息说明】当角色发送图片、视频、自拍等媒体时，使用照片格式并提�?-4句描述：
+【媒体消息说明】当角色发送图片、视频、自拍等媒体时，使用照片格式并提供3-4句描述：
 [照片:她随手拍下窗外的晚霞，橙红色的云彩铺满天空]
 [照片:一张餐厅自拍，她对着镜头比了个耶的手势，桌上摆着精致的甜点]
 [照片:手机截图，显示她正在追的剧刚更新了]
-发送媒体的频率应模拟真实聊天习惯，不要过于频繁。角色会分享日常：随手拍的风景、美食、自拍、截图、录像等�?
+发送媒体的频率应模拟真实聊天习惯，不要过于频繁。角色会分享日常：随手拍的风景、美食、自拍、截图、录像等。
 
-【错误示�?- 绝对禁止�?
-*她微微一�? 你好�?�?错误！禁止添加动作描�?
-你好，最近怎么样？太好笑了 �?错误！没有用|||分开
-{{user}}: 我也想你 �?错误！禁止替用户发言`;
+【错误示例 - 绝对禁止】
+*她微微一笑* 你好啊 ← 错误！禁止添加动作描写
+你好，最近怎么样？太好笑了 ← 错误！没有用|||分开
+{{user}}: 我也想你 ← 错误！禁止替用户发言`;
 
-// 世界书名称前缀（用于生�?【可乐】和xx的聊�?格式�?
+// 世界书名称前缀（用于生成"【可乐】和xx的聊天"格式）
 export const LOREBOOK_NAME_PREFIX = '【可乐】和';
 export const LOREBOOK_NAME_SUFFIX = '的聊天';
 
-// 生成世界书名�?
+// 生成世界书名称
 export function generateLorebookName(contactName) {
   return `${LOREBOOK_NAME_PREFIX}${contactName}${LOREBOOK_NAME_SUFFIX}`;
 }
@@ -316,8 +353,8 @@ export function getUserStickers(settings = getSettings()) {
 // 解析 <meme> 标签，替换为图片 HTML
 export function parseMemeTag(text) {
   if (!text || typeof text !== 'string') return text;
-  // 匹配 <meme>任意描述+文件ID.扩展�?/meme>，只捕获文件ID部分
-  // 使用 .*? 替代 [\u4e00-\u9fa5]*? 以支持包含特殊字符（�?! ? 等）的表情名�?
+  // 匹配 <meme>任意描述+文件ID.扩展名</meme>，只捕获文件ID部分
+  // 使用 .*? 替代 [\u4e00-\u9fa5]*? 以支持包含特殊字符（如 ! ? 等）的表情名称
   return text.replace(/<\s*meme\s*>.*?([a-zA-Z0-9]+?\.(?:jpg|jpeg|png|gif))\s*<\s*\/\s*meme\s*>/gi, (match, fileId) => {
     return `<img src="https://files.catbox.moe/${fileId}" style="max-width:130px; border-radius: 10px; display: block; margin: 0 auto;" alt="表情包" onerror="this.alt='加载失败'; this.style.border='1px dashed #ff4d4f';">`;
   });
@@ -329,11 +366,11 @@ export function hasMemeTag(text) {
   return /<meme>\s*.+?\s*<\/meme>/i.test(text);
 }
 
-// 智能分割AI消息：处�?||| 分隔符，并将 meme/语音/照片/音乐 标签与其他文字分开
+// 智能分割AI消息：处理 ||| 分隔符，并将 meme/语音/照片/音乐 标签与其他文字分开
 export function splitAIMessages(response) {
   if (!response || typeof response !== 'string') return [];
 
-  // 第一步：�?||| 分隔
+  // 第一步：用 ||| 分隔
   const parts = response.split('|||').map(m => m.trim()).filter(m => m);
 
   // 第二步：对每个部分检查是否包含需要分割的特殊标签
@@ -384,13 +421,13 @@ export function splitAIMessages(response) {
       specialTags.push({ tag: match[0], index: match.index });
     }
 
-    // 查找音乐标签（带冒号格式�?
+    // 查找音乐标签（带冒号格式）
     const musicRegexLocal1 = new RegExp(musicRegexWithColon.source, 'g');
     while ((match = musicRegexLocal1.exec(part)) !== null) {
       specialTags.push({ tag: match[0], index: match.index });
     }
 
-    // 查找音乐标签（无冒号格式�?
+    // 查找音乐标签（无冒号格式）
     const musicRegexLocal2 = new RegExp(musicRegexNoColon.source, 'g');
     while ((match = musicRegexLocal2.exec(part)) !== null) {
       // 避免重复匹配（如果已经被带冒号的匹配到）
@@ -415,7 +452,7 @@ export function splitAIMessages(response) {
       specialTags.push({ tag: match[0], index: match.index });
     }
 
-    // 如果没有特殊标签，直接添�?
+    // 如果没有特殊标签，直接添加
     if (specialTags.length === 0) {
       result.push(part);
       continue;
@@ -424,7 +461,7 @@ export function splitAIMessages(response) {
     // 调试日志
     console.log('[可乐] splitAIMessages 分割:', { part, specialTags });
 
-    // 按位置排�?
+    // 按位置排序
     specialTags.sort((a, b) => a.index - b.index);
 
     // 分割消息
@@ -440,7 +477,7 @@ export function splitAIMessages(response) {
       lastEnd = index + tag.length;
     }
 
-    // 添加最后一个标签后的文�?
+    // 添加最后一个标签后的文字
     if (lastEnd < part.length) {
       const after = part.substring(lastEnd).trim();
       if (after) result.push(after);
@@ -467,7 +504,7 @@ function applyDefaults(target, defaults) {
   }
 }
 
-// 初始化设�?
+// 初始化设置
 export function loadSettings() {
   extension_settings[extensionName] = extension_settings[extensionName] || {};
   const settings = extension_settings[extensionName];
@@ -485,8 +522,8 @@ export function loadSettings() {
   }
   if (settings.userPersona) delete settings.userPersona;
 
-  // 迁移：旧�?aiStickers -> stickers（“添加的单个表情”）
-  // 说明：如果用户已经有自己�?stickers，则不再合并�?aiStickers（避免把旧默�?catbox 列表灌进去）�?
+  // 迁移：旧的 aiStickers -> stickers（"添加的单个表情"）
+  // 说明：如果用户已经有自己的 stickers，则不再合并旧 aiStickers（避免把旧默认 catbox 列表灌进去）。
   const hasUserStickers = Array.isArray(settings.stickers) &&
     settings.stickers.some(s => typeof s?.url === 'string' && s.url.trim());
 
@@ -517,7 +554,7 @@ export function loadSettings() {
 
   if (!Array.isArray(settings.stickers)) settings.stickers = [];
 
-  // 迁移：旧�?aiStickersEnabled -> userStickersEnabled
+  // 迁移：旧的 aiStickersEnabled -> userStickersEnabled
   if (settings.aiStickersEnabled !== undefined) {
     if (settings.userStickersEnabled === undefined) {
       settings.userStickersEnabled = settings.aiStickersEnabled;

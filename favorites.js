@@ -2,7 +2,7 @@
  * 收藏/世界书管理
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { world_names, loadWorldInfo, saveWorldInfo } from '../../../world-info.js';
 import { getSettings } from './config.js';
 import { escapeHtml } from './utils.js';
@@ -178,7 +178,7 @@ export function toggleFavoritesItem(type, index, enabled) {
     }
   }
 
-  saveSettingsDebounced();
+  requestSave();
 }
 
 // 移除收藏项
@@ -190,7 +190,7 @@ export function removeFavoritesItem(type, index) {
     if (!persona) return;
     if (confirm(`确定移除「${persona.name || '用户设定'}」？`)) {
       settings.userPersonas.splice(index, 1);
-      saveSettingsDebounced();
+      requestSave();
       refreshFavoritesList();
       showToast('已移除');
     }
@@ -199,7 +199,7 @@ export function removeFavoritesItem(type, index) {
     if (!lorebook) return;
     if (confirm(`确定移除「${lorebook.name}」？`)) {
       settings.selectedLorebooks.splice(index, 1);
-      saveSettingsDebounced();
+      requestSave();
       refreshFavoritesList();
       showToast('已移除');
     }
@@ -381,7 +381,7 @@ function showNewPersonaModal() {
 
     settings.userPersonas.push({ name, content, enabled: true, addedTime: timeStr });
 
-    saveSettingsDebounced();
+    requestSave();
     modal.remove();
     refreshFavoritesList();
   });
@@ -412,7 +412,7 @@ function bindPersonaPanelEvents(panel, personaIdx) {
     if (settings.userPersonas?.[personaIdx]) {
       settings.userPersonas[personaIdx].name = name;
       settings.userPersonas[personaIdx].content = content;
-      saveSettingsDebounced();
+      requestSave();
       showToast('已保存');
       refreshFavoritesList();
       closeUserPersonaDetail();
@@ -443,7 +443,7 @@ function bindPersonaPanelEvents(panel, personaIdx) {
   panel.querySelector('#wechat-persona-delete').addEventListener('click', () => {
     if (confirm('确定删除此用户设定？')) {
       settings.userPersonas.splice(personaIdx, 1);
-      saveSettingsDebounced();
+      requestSave();
       closeUserPersonaDetail();
       refreshFavoritesList();
     }
@@ -477,7 +477,7 @@ async function syncPersonaToTavern(name, content) {
 
       // 保存设置
       if (typeof SillyTavern !== 'undefined' && SillyTavern.saveSettingsDebounced) {
-        await SillyTavern.saveSettingsDebounced();
+        await SillyTavern.requestSave();
       }
 
       // 尝试执行同步命令
@@ -628,7 +628,7 @@ function bindLorebookPanelEvents(panel, lorebook, lorebookIdx) {
       const settings = getSettings();
       if (settings.selectedLorebooks?.[lorebookIdx]?.entries?.[entryIdx]) {
         settings.selectedLorebooks[lorebookIdx].entries[entryIdx].enabled = toggle.checked;
-        saveSettingsDebounced();
+        requestSave();
         // 同步到酒馆
         await syncLorebookToTavern(lorebook.name, lorebookIdx);
       }
@@ -695,7 +695,7 @@ function bindLorebookPanelEvents(panel, lorebook, lorebookIdx) {
         entry.comment = comment;
         entry.keys = keys;
         entry.content = content;
-        saveSettingsDebounced();
+        requestSave();
 
         // 同步到酒馆
         btn.disabled = true;
@@ -735,7 +735,7 @@ function bindLorebookPanelEvents(panel, lorebook, lorebookIdx) {
     if (confirm(`确定移除「${lorebook.name}」？`)) {
       const settings = getSettings();
       settings.selectedLorebooks.splice(lorebookIdx, 1);
-      saveSettingsDebounced();
+      requestSave();
       closeLorebookDetail();
       refreshFavoritesList();
     }
@@ -871,7 +871,7 @@ export async function refreshLorebookFromTavern(name, lorebookIdx) {
   if (settings.selectedLorebooks?.[lorebookIdx]) {
     settings.selectedLorebooks[lorebookIdx].entries = entries;
     settings.selectedLorebooks[lorebookIdx].lastUpdated = new Date().toISOString();
-    saveSettingsDebounced();
+    requestSave();
   }
 }
 
@@ -992,7 +992,7 @@ export function showAddPersonaPanel() {
     const timeStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')}`;
 
     settings.userPersonas.push({ name: name || '用户设定', content, enabled: true, addedTime: timeStr });
-    saveSettingsDebounced();
+    requestSave();
 
     modal.remove();
     refreshFavoritesList();
@@ -1079,7 +1079,7 @@ export async function addLorebookToFavorites(name) {
       fromCharacter: false  // 标记为全局世界书
     });
 
-    saveSettingsDebounced();
+    requestSave();
     refreshFavoritesList('global');
     showToast(`已导入「${name}」为全局世界书`);
   } catch (err) {
@@ -1171,7 +1171,7 @@ export async function syncCharacterBookToTavern(charData) {
       });
     }
 
-    saveSettingsDebounced();
+    requestSave();
 
     // 尝试同步到酒馆世界书系统
     if (typeof saveWorldInfo === 'function') {

@@ -2,6 +2,22 @@
  * 工具函数
  */
 
+// ========== 日志管理 ==========
+const DEBUG = true; // 生产环境改为 false
+
+export function log(...args) {
+  if (DEBUG) console.log('[可乐]', ...args);
+}
+
+export function logWarn(...args) {
+  if (DEBUG) console.warn('[可乐]', ...args);
+}
+
+export function logError(...args) {
+  // 错误始终输出
+  console.error('[可乐]', ...args);
+}
+
 // 获取当前时间字符串
 export function getCurrentTime() {
   const now = new Date();
@@ -10,9 +26,23 @@ export function getCurrentTime() {
 
 // HTML 转义
 export function escapeHtml(text) {
+  if (text == null) return '';
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// 提取内嵌的图片描述 [配图:xxx]（朋友圈专用格式）
+export function extractEmbeddedPhotos(text) {
+  const images = [];
+  const embeddedPhotoRegex = /\[配图[：:]\s*(.+?)\]/g;
+  let match;
+  while ((match = embeddedPhotoRegex.exec(text)) !== null) {
+    images.push(match[1].trim());
+  }
+  // 移除内嵌的配图标签，保留纯文案
+  const cleanText = text.replace(/\[配图[：:]\s*(.+?)\]/g, '').trim();
+  return { images, cleanText };
 }
 
 // 睡眠函数
@@ -22,7 +52,8 @@ export function sleep(ms) {
 
 // 根据内容长度计算语音秒数
 export function calculateVoiceDuration(content) {
-  const seconds = Math.max(2, Math.min(60, Math.ceil(content.length / 3)));
+  const text = (content || '').toString();
+  const seconds = Math.max(2, Math.min(60, Math.ceil(text.length / 3)));
   return seconds;
 }
 

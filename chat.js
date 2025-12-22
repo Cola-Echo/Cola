@@ -2,24 +2,33 @@
  * 聊天功能
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave, saveNow } from './save-manager.js';
 import { getContext } from '../../../extensions.js';
 import { getSettings, SUMMARY_MARKER_PREFIX, getUserStickers, parseMemeTag, splitAIMessages } from './config.js';
-import { escapeHtml, sleep, formatMessageTime, calculateVoiceDuration, formatQuoteDate, bindImageLoadFallback } from './utils.js';
+import { escapeHtml, sleep, formatMessageTime, calculateVoiceDuration, formatQuoteDate, bindImageLoadFallback, extractEmbeddedPhotos } from './utils.js';
 import { getUserAvatarHTML, refreshChatList } from './ui.js';
-import { bindMessageBubbleEvents, getPendingQuote, clearQuote, setQuote } from './message-menu.js';
+import { bindMessageBubbleEvents, getPendingQuote, clearQuote, setQuote, showMessageMenu, hideMessageMenu } from './message-menu.js';
 import { showToast, showNotificationBanner } from './toast.js';
+import { ICON_RED_PACKET } from './icons.js';
 import { aiShareMusic, playMusic as kugouPlayMusic } from './music.js';
 import { loadContactBackground } from './chat-background.js';
 import { tryTriggerMomentAfterChat, addMomentToContact } from './moments.js';
 import { startVoiceCall } from './voice-call.js';
 import { startVideoCall } from './video-call.js';
+import { showOpenRedPacket, generateRedPacketId } from './red-packet.js';
+import { showReceiveTransferPage, generateTransferId } from './transfer.js';
+import { getSelectedTime, clearSelectedTime } from './chat-func-panel.js';
 
 // 当前聊天的联系人索引
 export let currentChatIndex = -1;
 
 // 聊天记录上限（达到此数量时提醒总结）
 const CHAT_HISTORY_LIMIT = 300;
+
+// 分页渲染配置
+const MESSAGES_PER_PAGE = 80;
+let currentRenderedStartIndex = 0; // 当前渲染的起始索引
+let isLoadingMoreMessages = false; // 是否正在加载更多消息
 
 // 检测AI发起通话请求的类型
 // 返回 'voice' | 'video' | null（仅用于精确匹配）
@@ -71,18 +80,56 @@ const detectAiCallRequestType = detectAiCallRequest;
 // 检查聊天记录是否需要总结（单聊）
 export function checkSummaryReminder(contact) {
   if (!contact || !contact.chatHistory) return;
-  const count = contact.chatHistory.length;
-  if (count >= CHAT_HISTORY_LIMIT) {
-    showToast(`聊天记录已达${count}条，建议总结`, '⚠️', 4000);
+
+  // 查找最后一个总结标记的位置
+  let lastMarkerIndex = -1;
+  for (let i = contact.chatHistory.length - 1; i >= 0; i--) {
+    if (contact.chatHistory[i].content?.startsWith(SUMMARY_MARKER_PREFIX) || contact.chatHistory[i].isMarker) {
+      lastMarkerIndex = i;
+      break;
+    }
+  }
+
+  // 计算标记之后的消息数量（不含标记本身）
+  const newMsgCount = contact.chatHistory.slice(lastMarkerIndex + 1).filter(
+    m => !m.content?.startsWith(SUMMARY_MARKER_PREFIX) && !m.isMarker
+  ).length;
+
+  // 只在刚好达到阈值时提醒一次（通过标记位避免重复提醒）
+  if (newMsgCount >= CHAT_HISTORY_LIMIT && !contact._summaryReminderShown) {
+    contact._summaryReminderShown = true;
+    showToast(`聊天记录已达${newMsgCount}条，建议总结`, '⚠️', 2500);
+  } else if (newMsgCount < CHAT_HISTORY_LIMIT) {
+    // 如果消息数低于阈值（可能是总结后），重置标记
+    contact._summaryReminderShown = false;
   }
 }
 
 // 检查群聊记录是否需要总结
 export function checkGroupSummaryReminder(groupChat) {
   if (!groupChat || !groupChat.chatHistory) return;
-  const count = groupChat.chatHistory.length;
-  if (count >= CHAT_HISTORY_LIMIT) {
-    showToast(`群聊记录已达${count}条，建议总结`, '⚠️', 4000);
+
+  // 查找最后一个总结标记的位置
+  let lastMarkerIndex = -1;
+  for (let i = groupChat.chatHistory.length - 1; i >= 0; i--) {
+    if (groupChat.chatHistory[i].content?.startsWith(SUMMARY_MARKER_PREFIX) || groupChat.chatHistory[i].isMarker) {
+      lastMarkerIndex = i;
+      break;
+    }
+  }
+
+  // 计算标记之后的消息数量（不含标记本身）
+  const newMsgCount = groupChat.chatHistory.slice(lastMarkerIndex + 1).filter(
+    m => !m.content?.startsWith(SUMMARY_MARKER_PREFIX) && !m.isMarker
+  ).length;
+
+  // 只在刚好达到阈值时提醒一次（通过标记位避免重复提醒）
+  if (newMsgCount >= CHAT_HISTORY_LIMIT && !groupChat._summaryReminderShown) {
+    groupChat._summaryReminderShown = true;
+    showToast(`群聊记录已达${newMsgCount}条，建议总结`, '⚠️', 2500);
+  } else if (newMsgCount < CHAT_HISTORY_LIMIT) {
+    // 如果消息数低于阈值（可能是总结后），重置标记
+    groupChat._summaryReminderShown = false;
   }
 }
 
@@ -278,7 +325,7 @@ export function openChat(contactIndex) {
   // 清除未读消息计数
   if (contact.unreadCount && contact.unreadCount > 0) {
     contact.unreadCount = 0;
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
   }
 
@@ -291,12 +338,29 @@ export function openChat(contactIndex) {
 
   if (chatHistory.length === 0) {
     messagesContainer.innerHTML = '';
+    currentRenderedStartIndex = 0;
   } else {
-    messagesContainer.innerHTML = renderChatHistory(contact, chatHistory);
+    // 分页渲染：只渲染最后 MESSAGES_PER_PAGE 条消息
+    const totalMessages = chatHistory.length;
+    currentRenderedStartIndex = Math.max(0, totalMessages - MESSAGES_PER_PAGE);
+    const messagesToRender = chatHistory.slice(currentRenderedStartIndex);
+
+    // 如果有更多历史消息，显示"加载更多"提示
+    let loadMoreHtml = '';
+    if (currentRenderedStartIndex > 0) {
+      loadMoreHtml = `<div class="wechat-load-more" id="wechat-load-more">上滑加载更多消息 (${currentRenderedStartIndex} 条)</div>`;
+    }
+
+    messagesContainer.innerHTML = loadMoreHtml + renderChatHistory(contact, messagesToRender, currentRenderedStartIndex);
     bindVoiceBubbleEvents(messagesContainer);
     bindPhotoBubbleEvents(messagesContainer);
     bindMusicCardEvents(messagesContainer);
     bindMessageBubbleEvents(messagesContainer);
+    bindRedPacketBubbleEvents(messagesContainer);
+    bindTransferBubbleEvents(messagesContainer);
+
+    // 绑定滚动加载更多事件
+    bindScrollLoadMore(messagesContainer, contact);
   }
 
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -320,18 +384,99 @@ export function openChatByContactId(contactId, index) {
   }
 }
 
+// 绑定滚动加载更多事件
+function bindScrollLoadMore(container, contact) {
+  // 移除旧的事件监听器（如果有）
+  container.removeEventListener('scroll', container._scrollHandler);
+
+  container._scrollHandler = function() {
+    // 如果正在加载或已经加载完所有消息，不处理
+    if (isLoadingMoreMessages || currentRenderedStartIndex <= 0) return;
+
+    // 当滚动到顶部附近时（距离顶部小于100px）加载更多
+    if (container.scrollTop < 100) {
+      loadMoreMessages(container, contact);
+    }
+  };
+
+  container.addEventListener('scroll', container._scrollHandler);
+}
+
+// 加载更多历史消息
+function loadMoreMessages(container, contact) {
+  if (isLoadingMoreMessages || currentRenderedStartIndex <= 0) return;
+
+  isLoadingMoreMessages = true;
+
+  const chatHistory = contact.chatHistory || [];
+
+  // 计算要加载的消息范围
+  const newEndIndex = currentRenderedStartIndex;
+  const newStartIndex = Math.max(0, currentRenderedStartIndex - MESSAGES_PER_PAGE);
+  const messagesToLoad = chatHistory.slice(newStartIndex, newEndIndex);
+
+  if (messagesToLoad.length === 0) {
+    isLoadingMoreMessages = false;
+    return;
+  }
+
+  // 保存当前滚动位置
+  const oldScrollHeight = container.scrollHeight;
+
+  // 渲染新消息
+  const newHtml = renderChatHistory(contact, messagesToLoad, newStartIndex);
+
+  // 更新"加载更多"提示
+  const loadMoreEl = document.getElementById('wechat-load-more');
+  if (loadMoreEl) {
+    if (newStartIndex > 0) {
+      loadMoreEl.textContent = `上滑加载更多消息 (${newStartIndex} 条)`;
+      loadMoreEl.insertAdjacentHTML('afterend', newHtml);
+    } else {
+      // 已加载所有消息，移除提示
+      loadMoreEl.insertAdjacentHTML('afterend', newHtml);
+      loadMoreEl.remove();
+    }
+  }
+
+  // 更新当前渲染的起始索引
+  currentRenderedStartIndex = newStartIndex;
+
+  // 绑定新消息的事件
+  bindVoiceBubbleEvents(container);
+  bindPhotoBubbleEvents(container);
+  bindMusicCardEvents(container);
+  bindMessageBubbleEvents(container);
+
+  // 恢复滚动位置，使用户看到的内容不变
+  const newScrollHeight = container.scrollHeight;
+  container.scrollTop = newScrollHeight - oldScrollHeight;
+
+  isLoadingMoreMessages = false;
+
+  console.log('[可乐] 加载更多消息:', {
+    已加载: messagesToLoad.length,
+    剩余: newStartIndex,
+    总数: chatHistory.length
+  });
+}
+
 // 渲染聊天历史
-export function renderChatHistory(contact, chatHistory) {
-  const firstChar = contact.name ? contact.name.charAt(0) : '?';
-  const avatarContent = contact.avatar
-    ? `<img src="${contact.avatar}" alt="" onerror="this.style.display='none';this.parentElement.innerHTML='${firstChar}'">`
+// indexOffset: 消息在原始 chatHistory 中的起始索引偏移量
+export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
+  const contactName = (contact?.name || '?').toString();
+  const firstChar = escapeHtml(contactName.charAt(0) || '?');
+  const avatarContent = contact?.avatar
+    ? `<img src="${escapeHtml(contact.avatar)}" alt="" onerror="this.style.display='none';this.parentElement.textContent='${firstChar}'">`
     : firstChar;
 
   let html = '';
   let lastTimestamp = 0;
   const TIME_GAP_THRESHOLD = 5 * 60 * 1000;
 
-  chatHistory.forEach((msg, index) => {
+  chatHistory.forEach((msg, localIndex) => {
+    // 计算在原始 chatHistory 中的真实索引
+    const index = indexOffset + localIndex;
     const msgTimestamp = msg.timestamp || new Date(msg.time).getTime() || 0;
 
     // 跳过通话中的消息（只保存到历史记录，不显示为聊天气泡）
@@ -441,16 +586,16 @@ export function renderChatHistory(contact, chatHistory) {
         // 已接通：显示视频通话时长
         videoCallRecordHTML = `
           <div class="wechat-call-record wechat-video-call-record">
-            <span class="wechat-call-record-text">视频通话 ${callInfo}</span>
             ${cameraIconSVG}
+            <span class="wechat-call-record-text">视频通话 ${callInfo}</span>
           </div>
         `;
       } else if (isCancelled) {
         // 用户发起未接通：已取消
         videoCallRecordHTML = `
           <div class="wechat-call-record wechat-video-call-record">
-            <span class="wechat-call-record-text">已取消</span>
             ${cameraIconSVG}
+            <span class="wechat-call-record-text">已取消</span>
           </div>
         `;
       } else if (isRejected) {
@@ -473,8 +618,8 @@ export function renderChatHistory(contact, chatHistory) {
         // 兜底：显示原始内容
         videoCallRecordHTML = `
           <div class="wechat-call-record wechat-video-call-record">
-            <span class="wechat-call-record-text">${escapeHtml(callInfo)}</span>
             ${cameraIconSVG}
+            <span class="wechat-call-record-text">${escapeHtml(callInfo)}</span>
           </div>
         `;
       }
@@ -483,6 +628,88 @@ export function renderChatHistory(contact, chatHistory) {
         html += `<div class="wechat-message self" data-msg-index="${index}" data-msg-role="user"><div class="wechat-message-avatar">${getUserAvatarHTML()}</div><div class="wechat-message-content"><div class="wechat-bubble wechat-call-record-bubble">${videoCallRecordHTML}</div></div></div>`;
       } else {
         html += `<div class="wechat-message" data-msg-index="${index}" data-msg-role="assistant"><div class="wechat-message-avatar">${avatarContent}</div><div class="wechat-message-content"><div class="wechat-bubble wechat-call-record-bubble">${videoCallRecordHTML}</div></div></div>`;
+      }
+      lastTimestamp = msgTimestamp;
+      return;
+    }
+
+    // 检查是否是红包消息
+    if (msg.isRedPacket && msg.redPacketInfo) {
+      const rpInfo = msg.redPacketInfo;
+      const isClaimed = rpInfo.status === 'claimed';
+      // 检查是否过期（未领取且超过24小时）
+      const isExpired = !isClaimed && rpInfo.expireAt && Date.now() > rpInfo.expireAt;
+      const claimedClass = isClaimed ? 'claimed' : (isExpired ? 'expired' : '');
+      const statusText = isClaimed
+        ? '<span class="wechat-rp-bubble-status">已领取</span>'
+        : (isExpired
+          ? '<span class="wechat-rp-bubble-status">已过期</span>'
+          : '<span class="wechat-rp-bubble-status hidden"></span>');
+
+      const rpBubbleHTML = `
+        <div class="wechat-red-packet-bubble ${claimedClass}" data-rp-id="${rpInfo.id}" data-role="${msg.role}" data-msg-index="${index}">
+          <div class="wechat-rp-bubble-icon">${ICON_RED_PACKET}</div>
+          <div class="wechat-rp-bubble-content">
+            <div class="wechat-rp-bubble-message">${escapeHtml(rpInfo.message || '恭喜发财，大吉大利')}</div>
+            ${statusText}
+          </div>
+          <div class="wechat-rp-bubble-footer">
+            <span class="wechat-rp-bubble-label">微信红包</span>
+          </div>
+        </div>
+      `;
+
+      if (msg.role === 'user') {
+        html += `<div class="wechat-message self" data-msg-index="${index}" data-msg-role="user"><div class="wechat-message-avatar">${getUserAvatarHTML()}</div><div class="wechat-message-content">${rpBubbleHTML}</div></div>`;
+      } else {
+        html += `<div class="wechat-message" data-msg-index="${index}" data-msg-role="assistant"><div class="wechat-message-avatar">${avatarContent}</div><div class="wechat-message-content">${rpBubbleHTML}</div></div>`;
+      }
+      lastTimestamp = msgTimestamp;
+      return;
+    }
+
+    // 检查是否是转账消息
+    if (msg.isTransfer && msg.transferInfo) {
+      const tfInfo = msg.transferInfo;
+      let status = tfInfo.status || 'pending';
+
+      // 检查是否过期（待收款且超过24小时）
+      const isExpired = status === 'pending' && tfInfo.expireAt && Date.now() > tfInfo.expireAt;
+      if (isExpired) {
+        status = 'expired';
+      }
+
+      // 状态图标和文字
+      let statusIcon, statusText;
+      if (status === 'received') {
+        statusIcon = `<svg viewBox="0 0 24 24" width="16" height="16"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`;
+        statusText = '已收款';
+      } else if (status === 'refunded' || status === 'expired') {
+        // 已退还 或 已过期（使用相同图标和文字）
+        statusIcon = `<svg viewBox="0 0 24 24" width="16" height="16"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`;
+        statusText = msg.role === 'user' ? '已被退还' : '已退还';
+      } else {
+        statusIcon = `<svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 17L17 7M17 7H7M17 7V17" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        statusText = msg.role === 'user' ? '你发起了一笔转账' : '请收款';
+      }
+
+      const tfBubbleHTML = `
+        <div class="wechat-transfer-bubble ${status}" data-tf-id="${tfInfo.id}" data-role="${msg.role}" data-msg-index="${index}">
+          <div class="wechat-tf-bubble-amount">¥${tfInfo.amount.toFixed(2)}</div>
+          <div class="wechat-tf-bubble-status">
+            <span class="wechat-tf-bubble-status-icon">${statusIcon}</span>
+            <span class="wechat-tf-bubble-status-text">${statusText}</span>
+          </div>
+          <div class="wechat-tf-bubble-footer">
+            <span class="wechat-tf-bubble-label">微信转账</span>
+          </div>
+        </div>
+      `;
+
+      if (msg.role === 'user') {
+        html += `<div class="wechat-message self" data-msg-index="${index}" data-msg-role="user"><div class="wechat-message-avatar">${getUserAvatarHTML()}</div><div class="wechat-message-content">${tfBubbleHTML}</div></div>`;
+      } else {
+        html += `<div class="wechat-message" data-msg-index="${index}" data-msg-role="assistant"><div class="wechat-message-avatar">${avatarContent}</div><div class="wechat-message-content">${tfBubbleHTML}</div></div>`;
       }
       lastTimestamp = msgTimestamp;
       return;
@@ -503,8 +730,8 @@ export function renderChatHistory(contact, chatHistory) {
 
     // 检查是否包含 ||| 分隔符（历史消息可能未正确分割）
     // 如果包含，则拆分成多个独立消息，每个都有自己的头像
-    const msgContent = msg.content || '';
-    if (!isVoice && !isSticker && !isPhoto && !isMusic && (msgContent.indexOf('|||') >= 0 || /<\\s*meme\\s*>/i.test(msgContent))) {
+    const msgContent = (msg.content || '').toString();
+    if (!isVoice && !isSticker && !isPhoto && !isMusic && (msgContent.indexOf('|||') >= 0 || /<\s*meme\s*>/i.test(msgContent))) {
       const parts = (msgContent.indexOf('|||') >= 0
         ? msgContent.split('|||').map(function(p) { return p.trim(); }).filter(function(p) { return p; })
         : splitAIMessages(msgContent).map(function(p) { return (p || '').toString().trim(); }).filter(function(p) { return p; })
@@ -520,19 +747,20 @@ export function renderChatHistory(contact, chatHistory) {
         var partQuoteHtml = '';
         if (pi === 0 && msg.quote) {
           var quoteText;
+          var quoteContent = (msg.quote.content || '').toString();
           if (msg.quote.isVoice) {
-            var seconds = Math.max(2, Math.min(60, Math.ceil((msg.quote.content || '').length / 3)));
+            var seconds = Math.max(2, Math.min(60, Math.ceil(quoteContent.length / 3)));
             quoteText = '[语音] ' + seconds + '"';
           } else if (msg.quote.isPhoto) {
             quoteText = '[照片]';
           } else if (msg.quote.isSticker) {
             quoteText = '[表情]';
           } else {
-            quoteText = msg.quote.content.length > 30
-              ? msg.quote.content.substring(0, 30) + '...'
-              : msg.quote.content;
+            quoteText = quoteContent.length > 30
+              ? quoteContent.substring(0, 30) + '...'
+              : quoteContent;
           }
-          partQuoteHtml = '<div class="wechat-msg-quote"><span class="wechat-msg-quote-sender">' + escapeHtml(msg.quote.sender) + ':</span><span class="wechat-msg-quote-text">' + escapeHtml(quoteText) + '</span></div>';
+          partQuoteHtml = '<div class="wechat-msg-quote"><span class="wechat-msg-quote-sender">' + escapeHtml(msg.quote.sender || '') + ':</span><span class="wechat-msg-quote-text">' + escapeHtml(quoteText) + '</span></div>';
         }
 
         if (msg.role === 'user') {
@@ -593,25 +821,31 @@ export function renderChatHistory(contact, chatHistory) {
       bubbleContent = `<div class="wechat-message-bubble">${hasMeme ? processedContent : escapeHtml(msgContent)}</div>`;
     }
 
+    // 确保 bubbleContent 不为空
+    if (!bubbleContent) {
+      bubbleContent = `<div class="wechat-message-bubble">${escapeHtml(msg.content || '')}</div>`;
+    }
+
     // 添加引用条（如果有）
     let quoteHtml = '';
     if (msg.quote) {
       let quoteText;
+      const quoteContent = (msg.quote.content || '').toString();
       if (msg.quote.isVoice) {
-        const seconds = Math.max(2, Math.min(60, Math.ceil((msg.quote.content || '').length / 3)));
+        const seconds = Math.max(2, Math.min(60, Math.ceil(quoteContent.length / 3)));
         quoteText = `[语音] ${seconds}"`;
       } else if (msg.quote.isPhoto) {
         quoteText = '[照片]';
       } else if (msg.quote.isSticker) {
         quoteText = '[表情]';
       } else {
-        quoteText = msg.quote.content.length > 30
-          ? msg.quote.content.substring(0, 30) + '...'
-          : msg.quote.content;
+        quoteText = quoteContent.length > 30
+          ? quoteContent.substring(0, 30) + '...'
+          : quoteContent;
       }
       quoteHtml = `
         <div class="wechat-msg-quote">
-          <span class="wechat-msg-quote-sender">${escapeHtml(msg.quote.sender)}:</span>
+          <span class="wechat-msg-quote-sender">${escapeHtml(msg.quote.sender || '')}:</span>
           <span class="wechat-msg-quote-text">${escapeHtml(quoteText)}</span>
         </div>
       `;
@@ -639,15 +873,16 @@ export function renderChatHistory(contact, chatHistory) {
 
 // 生成静态语音气泡
 export function generateVoiceBubbleStatic(content, isSelf) {
-  const seconds = calculateVoiceDuration(content);
+  const safeContent = (content || '').toString();
+  const seconds = calculateVoiceDuration(safeContent);
   const width = Math.min(60 + seconds * 4, 200);
   const voiceId = 'voice_' + Math.random().toString(36).substring(2, 9);
 
-  // WiFi信号样式的三条弧线图标（统一使用相同的SVG，通过CSS控制方向）
+  // WiFi信号样式的三条弧线图标（水平朝右，通过CSS控制翻转方向）
   const wavesSvg = `<svg class="wechat-voice-waves-icon" viewBox="0 0 24 24" width="18" height="18">
-      <circle class="wechat-voice-arc arc1" cx="6" cy="12" r="2" fill="currentColor"/>
-      <path class="wechat-voice-arc arc2" d="M10 12a4 4 0 00-4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-      <path class="wechat-voice-arc arc3" d="M14 12a8 8 0 00-8-8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <circle class="wechat-voice-arc arc1" cx="5" cy="12" r="2" fill="currentColor"/>
+      <path class="wechat-voice-arc arc2" d="M10 8 A 5 5 0 0 1 10 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path class="wechat-voice-arc arc3" d="M15 4 A 10 10 0 0 1 15 20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
     </svg>`;
 
   // 用户消息：时长在左，波形在右
@@ -657,24 +892,25 @@ export function generateVoiceBubbleStatic(content, isSelf) {
     : `<span class="wechat-voice-waves">${wavesSvg}</span><span class="wechat-voice-duration">${seconds}"</span>`;
 
   return `
-    <div class="wechat-voice-bubble ${isSelf ? 'self' : ''}" style="width: ${width}px" data-voice-id="${voiceId}" data-voice-content="${escapeHtml(content)}">
+    <div class="wechat-voice-bubble ${isSelf ? 'self' : ''}" style="width: ${width}px" data-voice-id="${voiceId}" data-voice-content="${escapeHtml(safeContent)}">
       ${bubbleInner}
     </div>
-    <div class="wechat-voice-text hidden" id="${voiceId}">${escapeHtml(content)}</div>
+    <div class="wechat-voice-text hidden" id="${voiceId}">${escapeHtml(safeContent)}</div>
   `;
 }
 
 // 生成动态语音气泡
 export function generateVoiceBubble(content, isSelf) {
-  const seconds = calculateVoiceDuration(content);
+  const safeContent = (content || '').toString();
+  const seconds = calculateVoiceDuration(safeContent);
   const width = Math.min(60 + seconds * 4, 200);
   const uniqueId = 'voice_' + Math.random().toString(36).substring(2, 9);
 
-  // WiFi信号样式的三条弧线图标（统一使用相同的SVG，通过CSS控制方向）
+  // WiFi信号样式的三条弧线图标（水平朝右，通过CSS控制翻转方向）
   const wavesSvg = `<svg class="wechat-voice-waves-icon" viewBox="0 0 24 24" width="18" height="18">
-      <circle class="wechat-voice-arc arc1" cx="6" cy="12" r="2" fill="currentColor"/>
-      <path class="wechat-voice-arc arc2" d="M10 12a4 4 0 00-4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-      <path class="wechat-voice-arc arc3" d="M14 12a8 8 0 00-8-8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <circle class="wechat-voice-arc arc1" cx="5" cy="12" r="2" fill="currentColor"/>
+      <path class="wechat-voice-arc arc2" d="M10 8 A 5 5 0 0 1 10 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path class="wechat-voice-arc arc3" d="M15 4 A 10 10 0 0 1 15 20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
     </svg>`;
 
   // 用户消息：时长在左，波形在右
@@ -685,84 +921,31 @@ export function generateVoiceBubble(content, isSelf) {
 
   return {
     html: `
-      <div class="wechat-voice-bubble ${isSelf ? 'self' : ''}" style="width: ${width}px" data-voice-id="${uniqueId}" data-voice-content="${escapeHtml(content)}">
+      <div class="wechat-voice-bubble ${isSelf ? 'self' : ''}" style="width: ${width}px" data-voice-id="${uniqueId}" data-voice-content="${escapeHtml(safeContent)}">
         ${bubbleInner}
       </div>
-      <div class="wechat-voice-text hidden" id="${uniqueId}">${escapeHtml(content)}</div>
+      <div class="wechat-voice-text hidden" id="${uniqueId}">${escapeHtml(safeContent)}</div>
     `,
     id: uniqueId
   };
 }
 
-// 隐藏所有语音菜单
-function hideAllVoiceMenus() {
-  document.querySelectorAll('.wechat-voice-menu.visible').forEach(menu => {
-    menu.classList.remove('visible');
-  });
-  document.querySelectorAll('.wechat-voice-bubble[data-menu-open="true"]').forEach(bubble => {
-    bubble.dataset.menuOpen = 'false';
-  });
-}
-
-// 绑定语音气泡点击事件（播放动画）和长按菜单
+// 绑定语音气泡点击事件（播放动画 + 显示上方菜单）
 export function bindVoiceBubbleEvents(container) {
   const voiceBubbles = container.querySelectorAll('.wechat-voice-bubble:not([data-bound])');
   voiceBubbles.forEach(bubble => {
     bubble.setAttribute('data-bound', 'true');
 
-    let longPressTimer = null;
-    let isLongPress = false;
-
-    // 获取父消息元素判断是否是用户消息
+    // 获取父消息元素
     const messageEl = bubble.closest('.wechat-message');
-    const isUserMessage = messageEl?.classList.contains('self');
-    const voiceId = bubble.dataset.voiceId;
 
-    // 长按开始
-    const startLongPress = (e) => {
-      isLongPress = false;
-      longPressTimer = setTimeout(() => {
-        isLongPress = true;
-        if (isUserMessage) {
-          showVoiceMenu(bubble, messageEl, voiceId);
-        }
-      }, 500);
-    };
+    // 计算消息索引
+    const allMessages = Array.from(container.querySelectorAll('.wechat-message'));
+    const msgIndex = allMessages.indexOf(messageEl);
 
-    // 长按取消
-    const cancelLongPress = () => {
-      if (longPressTimer) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-      }
-    };
-
-    // 触摸事件
-    bubble.addEventListener('touchstart', startLongPress, { passive: true });
-    bubble.addEventListener('touchend', (e) => {
-      cancelLongPress();
-      if (isLongPress) {
-        e.preventDefault();
-      }
-    });
-    bubble.addEventListener('touchmove', cancelLongPress, { passive: true });
-
-    // 鼠标事件（PC端）
-    bubble.addEventListener('mousedown', startLongPress);
-    bubble.addEventListener('mouseup', cancelLongPress);
-    bubble.addEventListener('mouseleave', cancelLongPress);
-
-    // 点击播放动画
+    // 点击事件：播放动画 + 显示上方菜单
     bubble.addEventListener('click', (e) => {
-      // 如果是长按或正在显示菜单，不处理点击
-      if (isLongPress) {
-        isLongPress = false;
-        return;
-      }
-      if (bubble.dataset.menuOpen === 'true') {
-        hideAllVoiceMenus();
-        return;
-      }
+      e.stopPropagation();
 
       // 切换播放状态
       const isPlaying = bubble.classList.contains('playing');
@@ -781,124 +964,123 @@ export function bindVoiceBubbleEvents(container) {
           bubble.classList.remove('playing');
         }, duration * 1000);
       }
+
+      // 显示上方菜单（使用getRealMsgIndex获取真实索引）
+      const realIndex = getRealMsgIndexForVoice(container, messageEl);
+      showMessageMenu(bubble, realIndex, e);
     });
   });
-
-  // 点击其他地方关闭菜单
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.wechat-voice-menu') && !e.target.closest('.wechat-voice-bubble')) {
-      hideAllVoiceMenus();
-    }
-  }, { once: false });
 }
 
-// 显示语音消息长按菜单
-function showVoiceMenu(bubble, messageEl, voiceId) {
-  hideAllVoiceMenus();
+// 获取语音消息的真实索引
+function getRealMsgIndexForVoice(container, msgElement) {
+  const settings = getSettings();
+  const contact = settings.contacts[currentChatIndex];
+  if (!contact || !contact.chatHistory) return -1;
 
-  // 检查是否已有菜单
-  let menu = messageEl.querySelector('.wechat-voice-menu');
-  if (!menu) {
-    menu = document.createElement('div');
-    menu.className = 'wechat-voice-menu';
+  // 获取所有消息元素（不含时间标签）
+  const allMsgElements = Array.from(container.querySelectorAll('.wechat-message:not(.wechat-typing-wrapper)'));
+  const visualIndex = allMsgElements.indexOf(msgElement);
 
-    // 检查转文字状态
-    const textEl = document.getElementById(voiceId);
-    const isTextVisible = textEl?.classList.contains('visible');
+  if (visualIndex < 0) return -1;
 
-    menu.innerHTML = `
-      <div class="wechat-voice-menu-item" data-action="transcribe">${isTextVisible ? '收起文字' : '转文字'}</div>
-      <div class="wechat-voice-menu-item" data-action="quote">引用</div>
-      <div class="wechat-voice-menu-item" data-action="recall">撤回</div>
-      <div class="wechat-voice-menu-item" data-action="delete">删除</div>
-    `;
+  // 计算真实索引
+  let realIndex = -1;
+  let visualCount = 0;
 
-    // 将菜单添加到消息内容区域
-    const contentEl = messageEl.querySelector('.wechat-message-content');
-    if (contentEl) {
-      contentEl.style.position = 'relative';
-      contentEl.appendChild(menu);
+  for (let i = 0; i < contact.chatHistory.length; i++) {
+    const msg = contact.chatHistory[i];
+    if (msg.isMarker || msg.content?.startsWith(SUMMARY_MARKER_PREFIX) || msg.isRecalled) continue;
+
+    let visualMsgCount = 1;
+    const content = msg.content || '';
+    const isSpecial = msg.isVoice || msg.isSticker || msg.isPhoto || msg.isMusic;
+    if (!isSpecial && content.indexOf('|||') >= 0) {
+      const parts = content.split('|||').map(p => p.trim()).filter(p => p);
+      visualMsgCount = parts.length || 1;
     }
 
-    // 绑定菜单项点击事件
-    menu.querySelectorAll('.wechat-voice-menu-item').forEach(item => {
-      item.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const action = item.dataset.action;
-        handleVoiceMenuAction(action, bubble, messageEl, voiceId, menu);
-      });
-    });
+    if (visualIndex >= visualCount && visualIndex < visualCount + visualMsgCount) {
+      realIndex = i;
+      break;
+    }
+
+    visualCount += visualMsgCount;
   }
 
-  menu.classList.add('visible');
-  bubble.dataset.menuOpen = 'true';
+  return realIndex;
 }
 
-// 处理语音菜单操作
-function handleVoiceMenuAction(action, bubble, messageEl, voiceId, menu) {
-  hideAllVoiceMenus();
+// 绑定红包气泡点击事件（AI红包可点击打开）
+function bindRedPacketBubbleEvents(container) {
+  const rpBubbles = container.querySelectorAll('.wechat-red-packet-bubble:not([data-bound])');
+  rpBubbles.forEach(bubble => {
+    bubble.setAttribute('data-bound', 'true');
 
-  const textEl = document.getElementById(voiceId);
-  const msgIndex = parseInt(messageEl.dataset.msgIndex);
-  const voiceContent = bubble.dataset.voiceContent || '';
+    const role = bubble.dataset.role;
+    const isClaimed = bubble.classList.contains('claimed');
+    const isExpired = bubble.classList.contains('expired');
 
-  switch (action) {
-    case 'transcribe':
-      // 切换转文字显示
-      if (textEl) {
-        const isVisible = textEl.classList.contains('visible');
-        if (isVisible) {
-          textEl.classList.remove('visible');
-          textEl.classList.add('hidden');
-        } else {
-          textEl.classList.remove('hidden');
-          textEl.classList.add('visible');
+    // AI发的未领取且未过期红包可以点击
+    if (role === 'assistant' && !isClaimed && !isExpired) {
+      bubble.style.cursor = 'pointer';
+      bubble.addEventListener('click', () => {
+        const rpId = bubble.dataset.rpId;
+        const settings = getSettings();
+        const currentContact = settings.contacts[currentChatIndex];
+        if (!currentContact || !currentContact.chatHistory) return;
+
+        // 从聊天记录中找到对应的红包信息
+        const rpMsg = currentContact.chatHistory.find(m => m.isRedPacket && m.redPacketInfo?.id === rpId);
+        if (rpMsg && rpMsg.redPacketInfo) {
+          // 二次检查是否过期（防止数据更新后状态不同步）
+          if (rpMsg.redPacketInfo.expireAt && Date.now() > rpMsg.redPacketInfo.expireAt) {
+            showToast('红包已过期', 'red-packet');
+            return;
+          }
+          if (rpMsg.redPacketInfo.status !== 'claimed') {
+            showOpenRedPacket(rpMsg.redPacketInfo, currentContact);
+          }
         }
-      }
-      break;
-
-    case 'quote':
-      // 引用语音消息
-      const context = getContext();
-      const sender = context?.name1 || '用户';
-      setQuote({
-        content: voiceContent,
-        sender: sender,
-        isVoice: true
       });
-      showToast('已引用语音', '✅');
-      break;
+    }
+  });
+}
 
-    case 'recall':
-      // 撤回消息
-      if (!isNaN(msgIndex) && currentChatIndex >= 0) {
-        const settings = getSettings();
-        const contact = settings.contacts[currentChatIndex];
-        if (contact?.chatHistory?.[msgIndex]) {
-          contact.chatHistory[msgIndex].isRecalled = true;
-          contact.chatHistory[msgIndex].originalContent = contact.chatHistory[msgIndex].content;
-          contact.chatHistory[msgIndex].content = '';
-          saveSettingsDebounced();
-          openChat(currentChatIndex);
-          showToast('已撤回', '✅');
-        }
-      }
-      break;
+// 绑定转账气泡点击事件（AI转账可点击收款）
+function bindTransferBubbleEvents(container) {
+  const tfBubbles = container.querySelectorAll('.wechat-transfer-bubble:not([data-bound])');
+  tfBubbles.forEach(bubble => {
+    bubble.setAttribute('data-bound', 'true');
 
-    case 'delete':
-      // 删除消息
-      if (!isNaN(msgIndex) && currentChatIndex >= 0) {
+    const role = bubble.dataset.role;
+    // 检查状态（包括 expired）
+    const status = bubble.classList.contains('pending') ? 'pending' :
+                   bubble.classList.contains('received') ? 'received' :
+                   bubble.classList.contains('expired') ? 'expired' : 'refunded';
+
+    // AI发的待收款转账可以点击（过期的不可点击）
+    if (role === 'assistant' && status === 'pending') {
+      bubble.style.cursor = 'pointer';
+      bubble.addEventListener('click', () => {
+        const tfId = bubble.dataset.tfId;
         const settings = getSettings();
-        const contact = settings.contacts[currentChatIndex];
-        if (contact?.chatHistory) {
-          contact.chatHistory.splice(msgIndex, 1);
-          saveSettingsDebounced();
-          openChat(currentChatIndex);
-          showToast('已删除', '✅');
+        const currentContact = settings.contacts[currentChatIndex];
+        if (!currentContact || !currentContact.chatHistory) return;
+
+        // 从聊天记录中找到对应的转账信息
+        const tfMsg = currentContact.chatHistory.find(m => m.isTransfer && m.transferInfo?.id === tfId);
+        if (tfMsg && tfMsg.transferInfo && tfMsg.transferInfo.status === 'pending') {
+          // 检查是否过期
+          if (tfMsg.transferInfo.expireAt && Date.now() > tfMsg.transferInfo.expireAt) {
+            // 已过期，不做任何操作
+            return;
+          }
+          showReceiveTransferPage(tfMsg.transferInfo, currentContact);
         }
-      }
-      break;
-  }
+      });
+    }
+  });
 }
 
 // 绑定照片气泡点击事件（toggle切换蒙层）
@@ -996,6 +1178,163 @@ export function appendMessage(role, content, contact, isVoice = false, quote = n
   if (isVoice) {
     bindVoiceBubbleEvents(messagesContainer);
   }
+}
+
+// 追加红包消息到聊天界面
+export function appendRedPacketMessage(role, redPacketInfo, contact) {
+  const messagesContainer = document.getElementById('wechat-chat-messages');
+  if (!messagesContainer) return;
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `wechat-message ${role === 'user' ? 'self' : ''}`;
+
+  const firstChar = contact?.name ? contact.name.charAt(0) : '?';
+  let avatarContent;
+  if (role === 'user') {
+    avatarContent = getUserAvatarHTML();
+  } else {
+    avatarContent = contact?.avatar
+      ? `<img src="${contact.avatar}" alt="" onerror="this.style.display='none';this.parentElement.innerHTML='${firstChar}'">`
+      : firstChar;
+  }
+
+  const isClaimed = redPacketInfo.status === 'claimed';
+  // 检查是否过期
+  const isExpired = !isClaimed && redPacketInfo.expireAt && Date.now() > redPacketInfo.expireAt;
+  const claimedClass = isClaimed ? 'claimed' : (isExpired ? 'expired' : '');
+  const statusText = isClaimed
+    ? '<span class="wechat-rp-bubble-status">已领取</span>'
+    : (isExpired
+      ? '<span class="wechat-rp-bubble-status">已过期</span>'
+      : '<span class="wechat-rp-bubble-status hidden"></span>');
+
+  const bubbleContent = `
+    <div class="wechat-red-packet-bubble ${claimedClass}" data-rp-id="${redPacketInfo.id}" data-role="${role}">
+      <div class="wechat-rp-bubble-icon">${ICON_RED_PACKET}</div>
+      <div class="wechat-rp-bubble-content">
+        <div class="wechat-rp-bubble-message">${escapeHtml(redPacketInfo.message || '恭喜发财，大吉大利')}</div>
+        ${statusText}
+      </div>
+      <div class="wechat-rp-bubble-footer">
+        <span class="wechat-rp-bubble-label">微信红包</span>
+      </div>
+    </div>
+  `;
+
+  messageDiv.innerHTML = `
+    <div class="wechat-message-avatar">${avatarContent}</div>
+    <div class="wechat-message-content">${bubbleContent}</div>
+  `;
+
+  // AI发的未领取且未过期红包可以点击
+  if (role === 'assistant' && !isClaimed && !isExpired) {
+    const bubble = messageDiv.querySelector('.wechat-red-packet-bubble');
+    bubble.style.cursor = 'pointer';
+    bubble.addEventListener('click', () => {
+      // 二次检查是否过期（防止数据更新后状态不同步）
+      if (redPacketInfo.expireAt && Date.now() > redPacketInfo.expireAt) {
+        showToast('红包已过期', 'red-packet');
+        return;
+      }
+      showOpenRedPacket(redPacketInfo, contact);
+    });
+  }
+
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// 追加红包领取提示到聊天界面（中间的系统消息）
+export function appendRedPacketClaimNotice(claimerName, senderName, isUserClaiming) {
+  const messagesContainer = document.getElementById('wechat-chat-messages');
+  if (!messagesContainer) return;
+
+  const noticeDiv = document.createElement('div');
+  noticeDiv.className = 'wechat-message-notice wechat-rp-claim-notice';
+
+  const text = isUserClaiming
+    ? `你领取了${senderName}的红包`
+    : `${claimerName}领取了你的红包`;
+
+  noticeDiv.innerHTML = `<span>${escapeHtml(text)}</span>`;
+
+  messagesContainer.appendChild(noticeDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// 追加转账消息到聊天界面
+export function appendTransferMessage(role, transferInfo, contact) {
+  const messagesContainer = document.getElementById('wechat-chat-messages');
+  if (!messagesContainer) return;
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `wechat-message ${role === 'user' ? 'self' : ''}`;
+
+  const firstChar = contact?.name ? contact.name.charAt(0) : '?';
+  let avatarContent;
+  if (role === 'user') {
+    avatarContent = getUserAvatarHTML();
+  } else {
+    avatarContent = contact?.avatar
+      ? `<img src="${contact.avatar}" alt="" onerror="this.style.display='none';this.parentElement.innerHTML='${firstChar}'">`
+      : firstChar;
+  }
+
+  let status = transferInfo.status || 'pending';
+
+  // 检查是否过期（待收款且超过24小时）
+  const isExpired = status === 'pending' && transferInfo.expireAt && Date.now() > transferInfo.expireAt;
+  if (isExpired) {
+    status = 'expired';
+  }
+
+  // 状态图标和文字
+  let statusIcon, statusText;
+  if (status === 'received') {
+    statusIcon = `<svg viewBox="0 0 24 24" width="16" height="16"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`;
+    statusText = '已收款';
+  } else if (status === 'refunded' || status === 'expired') {
+    // 已退还 或 已过期（使用相同图标和文字）
+    statusIcon = `<svg viewBox="0 0 24 24" width="16" height="16"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`;
+    statusText = role === 'user' ? '已被退还' : '已退还';
+  } else {
+    statusIcon = `<svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 17L17 7M17 7H7M17 7V17" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    statusText = role === 'user' ? '你发起了一笔转账' : '请收款';
+  }
+
+  const bubbleContent = `
+    <div class="wechat-transfer-bubble ${status}" data-tf-id="${transferInfo.id}" data-role="${role}">
+      <div class="wechat-tf-bubble-amount">¥${transferInfo.amount.toFixed(2)}</div>
+      <div class="wechat-tf-bubble-status">
+        <span class="wechat-tf-bubble-status-icon">${statusIcon}</span>
+        <span class="wechat-tf-bubble-status-text">${statusText}</span>
+      </div>
+      <div class="wechat-tf-bubble-footer">
+        <span class="wechat-tf-bubble-label">微信转账</span>
+      </div>
+    </div>
+  `;
+
+  messageDiv.innerHTML = `
+    <div class="wechat-message-avatar">${avatarContent}</div>
+    <div class="wechat-message-content">${bubbleContent}</div>
+  `;
+
+  // AI发的待收款转账可以点击（过期的不可点击）
+  if (role === 'assistant' && status === 'pending' && !isExpired) {
+    const bubble = messageDiv.querySelector('.wechat-transfer-bubble');
+    bubble.style.cursor = 'pointer';
+    bubble.addEventListener('click', () => {
+      // 二次检查是否过期
+      if (transferInfo.expireAt && Date.now() > transferInfo.expireAt) {
+        return; // 静默不处理
+      }
+      showReceiveTransferPage(transferInfo, contact);
+    });
+  }
+
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 // 显示打字中指示器
@@ -1097,7 +1436,7 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
 
   contact.lastMessage = isVoice ? '[语音消息]' : messagesToSend[messagesToSend.length - 1];
   // 立即保存，确保用户消息不会丢失
-  saveSettingsDebounced();
+  saveNow();
   refreshChatList();
 
   // 只有用户还在当前聊天时才显示打字指示器
@@ -1114,9 +1453,30 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
       ? `[用户发送了语音消息，内容是：${messagesToSend.join('\n')}]`
       : messagesToSend.join('\n');
 
+    // 如果有选择的时间，添加时间上下文
+    const selectedTime = getSelectedTime();
+    if (selectedTime) {
+      const timeDate = new Date(selectedTime);
+      const timeStr = `${timeDate.getFullYear()}年${timeDate.getMonth() + 1}月${timeDate.getDate()}日 ${timeDate.getHours().toString().padStart(2, '0')}:${timeDate.getMinutes().toString().padStart(2, '0')}`;
+      combinedMessage = `[当前时间：${timeStr}]\n${combinedMessage}`;
+      clearSelectedTime();
+    }
+
     // 如果有引用，添加引用上下文
     if (quote) {
-      combinedMessage = `[用户引用了「${quote.sender}」的消息:「${quote.content}」进行回复]\n${combinedMessage}`;
+      let quoteDesc;
+      if (quote.isSticker) {
+        quoteDesc = `${quote.sender}:[表情]`;
+      } else if (quote.isPhoto) {
+        quoteDesc = `${quote.sender}:[照片]`;
+      } else if (quote.isVoice) {
+        quoteDesc = `${quote.sender}:[语音]`;
+      } else if (quote.isMusic) {
+        quoteDesc = `${quote.sender}:[音乐]${quote.content}`;
+      } else {
+        quoteDesc = `${quote.sender}:「${quote.content}」`;
+      }
+      combinedMessage = `[用户引用了 ${quoteDesc} 进行回复]\n${combinedMessage}`;
     }
 
     const aiResponse = await callAI(contact, combinedMessage);
@@ -1184,15 +1544,9 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
         let momentText = momentMatch[1].trim();
         console.log('[可乐] AI发布朋友圈:', momentText);
 
-        // 提取内嵌的图片描述 [配图:xxx]（朋友圈专用格式，避免与聊天照片冲突）
-        const images = [];
-        const embeddedPhotoRegex = /\[配图[：:]\s*(.+?)\]/g;
-        let embeddedMatch;
-        while ((embeddedMatch = embeddedPhotoRegex.exec(momentText)) !== null) {
-          images.push(embeddedMatch[1].trim());
-        }
-        // 移除内嵌的配图标签，保留纯文案
-        momentText = momentText.replace(embeddedPhotoRegex, '').trim();
+        // 提取内嵌的图片描述 [配图:xxx]
+        const { images, cleanText } = extractEmbeddedPhotos(momentText);
+        momentText = cleanText;
 
         // 检查后续消息是否有配图（兼容旧格式[照片:]）
         for (let j = i + 1; j < aiMessages.length && j < i + 5; j++) {
@@ -1211,7 +1565,7 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
 
         // 显示顶部通知横幅
         showNotificationBanner('微信', `${contact.name}发布了一条朋友圈`);
-        saveSettingsDebounced();
+        requestSave();
         refreshChatList();
         continue; // 跳过后续处理，继续下一条消息
       }
@@ -1233,7 +1587,7 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
           }
         }
         // 立即保存撤回状态
-        saveSettingsDebounced();
+        requestSave();
         // 只有用户还在当前聊天时才刷新界面
         if (currentChatIndex === contactIndex) {
           openChat(currentChatIndex);
@@ -1266,10 +1620,10 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
             appendMessage('assistant', textContent, contact, false, parsedText.quote);
           } else {
             contact.unreadCount = (contact.unreadCount || 0) + 1;
-            saveSettingsDebounced();
+            requestSave();
             refreshChatList(); // 立即刷新让红点逐个增加
           }
-          saveSettingsDebounced();
+          requestSave();
         }
 
         console.log(`[可乐] AI发起${callExtract.type === 'voice' ? '语音' : '视频'}通话`);
@@ -1279,6 +1633,106 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
           startVideoCall('ai', contactIndex);
         }
         break; // 通话请求后忽略同一轮中的其它输出
+      }
+
+      // 解析AI红包格式 [红包:金额:祝福语] 或 [红包:金额]
+      const redPacketMatch = aiMsg.match(/^\[红包[：:](\d+(?:\.\d{1,2})?)[：:]?(.*?)?\]$/);
+      if (redPacketMatch) {
+        const amount = Math.min(parseFloat(redPacketMatch[1]) || 0, 200);
+        const message = (redPacketMatch[2] || '').trim() || '恭喜发财，大吉大利';
+
+        if (amount > 0) {
+          const rpInfo = {
+            id: generateRedPacketId(),
+            amount: amount,
+            message: message,
+            senderName: contact.name,
+            status: 'pending',
+            claimedBy: null,
+            claimedAt: null,
+            expireAt: Date.now() + 24 * 60 * 60 * 1000
+          };
+
+          const inChat = currentChatIndex === contactIndex;
+
+          // 显示typing效果
+          if (inChat) {
+            showTypingIndicator(contact);
+            await sleep(1500);
+            hideTypingIndicator();
+          }
+
+          // 保存红包消息到聊天记录
+          contact.chatHistory.push({
+            role: 'assistant',
+            content: `[红包] ${message}`,
+            time: timeStr,
+            timestamp: Date.now(),
+            isRedPacket: true,
+            redPacketInfo: rpInfo
+          });
+
+          if (inChat) {
+            appendRedPacketMessage('assistant', rpInfo, contact);
+          } else {
+            contact.unreadCount = (contact.unreadCount || 0) + 1;
+            refreshChatList();
+          }
+
+          requestSave();
+          console.log('[可乐] AI发送红包:', { amount, message });
+          continue;
+        }
+      }
+
+      // 解析AI转账格式 [转账:金额:说明] 或 [转账:金额]
+      const transferMatch = aiMsg.match(/^\[转账[：:](\d+(?:\.\d{1,2})?)[：:]?(.*?)?\]$/);
+      if (transferMatch) {
+        const amount = parseFloat(transferMatch[1]) || 0; // 转账无上限
+        const description = (transferMatch[2] || '').trim() || '';
+
+        if (amount > 0) {
+          const tfInfo = {
+            id: generateTransferId(),
+            amount: amount,
+            description: description,
+            senderName: contact.name,
+            status: 'pending',
+            receivedAt: null,
+            refundedAt: null,
+            expireAt: Date.now() + 24 * 60 * 60 * 1000
+          };
+
+          const inChat = currentChatIndex === contactIndex;
+
+          // 显示typing效果
+          if (inChat) {
+            showTypingIndicator(contact);
+            await sleep(1500);
+            hideTypingIndicator();
+          }
+
+          // 保存转账消息到聊天记录
+          contact.chatHistory.push({
+            role: 'assistant',
+            content: `[转账] ¥${amount.toFixed(2)}`,
+            time: timeStr,
+            timestamp: Date.now(),
+            isTransfer: true,
+            transferInfo: tfInfo
+          });
+
+          if (inChat) {
+            appendTransferMessage('assistant', tfInfo, contact);
+          } else {
+            contact.unreadCount = (contact.unreadCount || 0) + 1;
+            refreshChatList();
+          }
+
+          requestSave();
+          console.log('[可乐] AI发送转账:', { amount, description });
+          continue;
+        }
       }
 
       // 解析AI表情包格式 [表情:序号] / [表情:名称]
@@ -1351,7 +1805,7 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
         }
 
         // 立即保存撤回状态
-        saveSettingsDebounced();
+        requestSave();
         if (currentChatIndex === contactIndex) {
           openChat(currentChatIndex);
         }
@@ -1374,11 +1828,12 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
           timestamp: Date.now(),
           isSticker: true
         });
+        // 每条消息都要标记待保存，防止用户切换页面时数据丢失
+        requestSave();
         if (inChat) {
           appendStickerMessage('assistant', stickerUrl, contact);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       } else if (aiIsMusic && aiMusicInfo) {
@@ -1397,11 +1852,12 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
             id: aiMusicInfo.id
           }
         });
+        // 每条消息都要标记待保存，防止用户切换页面时数据丢失
+        requestSave();
         if (inChat) {
           appendMusicCardMessage('assistant', aiMusicInfo, contact);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       } else if (aiIsPhoto) {
@@ -1412,11 +1868,12 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
           timestamp: Date.now(),
           isPhoto: true
         });
+        // 每条消息都要标记待保存，防止用户切换页面时数据丢失
+        requestSave();
         if (inChat) {
           appendPhotoMessage('assistant', aiMsg, contact);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       } else {
@@ -1428,11 +1885,12 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
           isVoice: aiIsVoice,
           quote: aiQuote
         });
+        // 每条消息都要标记待保存，防止用户切换页面时数据丢失
+        requestSave();
         if (inChat) {
           appendMessage('assistant', aiMsg, contact, aiIsVoice, aiQuote);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       }
@@ -1454,12 +1912,15 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
     // 替换占位符
     lastAiMsg = replaceMessagePlaceholders(lastAiMsg);
     contact.lastMessage = lastStickerUrl ? '[表情]' : (lastMusicMatch ? '[音乐]' : (lastPhotoMatch ? '[照片]' : (lastVoiceMatch ? '[语音消息]' : lastAiMsg)));
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     checkSummaryReminder(contact);
 
     // 尝试触发朋友圈生成（随机触发+30条保底）
     tryTriggerMomentAfterChat(currentChatIndex);
+
+    // 尝试触发语音/视频通话（随机触发+保底机制）
+    tryTriggerCallAfterChat(contactIndex);
 
   } catch (err) {
     hideTypingIndicator();
@@ -1503,7 +1964,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
   contact.lastMsgTime = timeStr;
 
   // 立即保存，确保用户消息不会丢失
-  saveSettingsDebounced();
+  saveNow();
 
   // 显示消息
   appendStickerMessage('user', stickerUrl, contact);
@@ -1516,9 +1977,19 @@ export async function sendStickerMessage(stickerUrl, description = '') {
   try {
     // 调用 AI - 传递表情描述让 AI 理解
     const { callAI } = await import('./ai.js');
-    const aiPrompt = description
+    let aiPrompt = description
       ? `[用户发送了一个表情包：${description}]`
       : '[用户发送了一个表情包]';
+
+    // 如果有选择的时间，添加时间上下文
+    const selectedTime = getSelectedTime();
+    if (selectedTime) {
+      const timeDate = new Date(selectedTime);
+      const timeStr = `${timeDate.getFullYear()}年${timeDate.getMonth() + 1}月${timeDate.getDate()}日 ${timeDate.getHours().toString().padStart(2, '0')}:${timeDate.getMinutes().toString().padStart(2, '0')}`;
+      aiPrompt = `[当前时间：${timeStr}]\n${aiPrompt}`;
+      clearSelectedTime();
+    }
+
     const aiResponse = await callAI(contact, aiPrompt);
 
     // 只有用户还在当前聊天时才隐藏打字指示器
@@ -1555,19 +2026,13 @@ export async function sendStickerMessage(stickerUrl, description = '') {
         let momentText = momentMatchSticker[1].trim();
         console.log('[可乐] AI发布朋友圈 (sendStickerMessage):', momentText);
 
-        // 提取内嵌的图片描述 [配图:xxx]（朋友圈专用格式）
-        const images = [];
-        const embeddedPhotoRegex = /\[配图[：:]\s*(.+?)\]/g;
-        let embeddedMatch;
-        while ((embeddedMatch = embeddedPhotoRegex.exec(momentText)) !== null) {
-          images.push(embeddedMatch[1].trim());
-        }
-        // 移除内嵌的配图标签，保留纯文案
-        momentText = momentText.replace(embeddedPhotoRegex, '').trim();
+        // 提取内嵌的图片描述 [配图:xxx]
+        const { images, cleanText } = extractEmbeddedPhotos(momentText);
+        momentText = cleanText;
 
         addMomentToContact(contact.id, { text: momentText, images: images });
         showNotificationBanner('微信', `${contact.name}发布了一条朋友圈`);
-        saveSettingsDebounced();
+        requestSave();
         continue;
       }
 
@@ -1586,7 +2051,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
           }
         }
         // 立即保存撤回状态
-        saveSettingsDebounced();
+        requestSave();
         if (currentChatIndex === contactIndex) {
           openChat(currentChatIndex);
         }
@@ -1616,10 +2081,10 @@ export async function sendStickerMessage(stickerUrl, description = '') {
             appendMessage('assistant', textContent, contact, false, parsedText.quote);
           } else {
             contact.unreadCount = (contact.unreadCount || 0) + 1;
-            saveSettingsDebounced();
+            requestSave();
             refreshChatList(); // 立即刷新让红点逐个增加
           }
-          saveSettingsDebounced();
+          requestSave();
         }
         console.log(`[可乐] AI发起${callExtractSticker.type === 'voice' ? '语音' : '视频'}通话 (sendStickerMessage)`);
         if (callExtractSticker.type === 'voice') {
@@ -1666,7 +2131,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
           appendStickerMessage('assistant', stickerUrl, contact);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
+          requestSave();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       } else if (aiIsPhoto) {
@@ -1683,7 +2148,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
           appendPhotoMessage('assistant', aiMsg, contact);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
+          requestSave();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       } else {
@@ -1724,7 +2189,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
             lastHistMsg.content = '';
           }
           // 立即保存撤回状态
-          saveSettingsDebounced();
+          requestSave();
           if (currentChatIndex === contactIndex) {
             openChat(currentChatIndex);
           }
@@ -1744,7 +2209,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
           appendMessage('assistant', aiMsg, contact, aiIsVoice, aiQuote);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
+          requestSave();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       }
@@ -1762,7 +2227,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
     lastAiMsg = lastParsed.content;
     lastAiMsg = replaceMessagePlaceholders(lastAiMsg);
     contact.lastMessage = lastStickerUrl ? '[表情]' : (lastPhotoMatch ? '[照片]' : (lastVoiceMatch ? '[语音消息]' : lastAiMsg));
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     checkSummaryReminder(contact);
 
@@ -1774,7 +2239,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
       hideTypingIndicator();
     }
     console.error('[可乐] AI 调用失败:', err);
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     if (currentChatIndex === contactIndex) {
       appendMessage('assistant', `⚠️ ${err.message}`, contact);
@@ -1891,7 +2356,7 @@ export async function sendPhotoMessage(description) {
   contact.lastMsgTime = timeStr;
 
   // 立即保存，确保用户消息不会丢失
-  saveSettingsDebounced();
+  saveNow();
 
   // 显示消息
   appendPhotoMessage('user', polishedDescription, contact);
@@ -1904,7 +2369,18 @@ export async function sendPhotoMessage(description) {
   try {
     // 调用 AI
     const { callAI } = await import('./ai.js');
-    const aiResponse = await callAI(contact, `[用户发送了一张照片，图片描述：${polishedDescription}]`);
+    let aiPrompt = `[用户发送了一张照片，图片描述：${polishedDescription}]`;
+
+    // 如果有选择的时间，添加时间上下文
+    const selectedTime = getSelectedTime();
+    if (selectedTime) {
+      const timeDate = new Date(selectedTime);
+      const timeStr = `${timeDate.getFullYear()}年${timeDate.getMonth() + 1}月${timeDate.getDate()}日 ${timeDate.getHours().toString().padStart(2, '0')}:${timeDate.getMinutes().toString().padStart(2, '0')}`;
+      aiPrompt = `[当前时间：${timeStr}]\n${aiPrompt}`;
+      clearSelectedTime();
+    }
+
+    const aiResponse = await callAI(contact, aiPrompt);
 
     // 只有用户还在当前聊天时才隐藏打字指示器
     if (currentChatIndex === contactIndex) {
@@ -1940,19 +2416,13 @@ export async function sendPhotoMessage(description) {
         let momentText = momentMatchPhoto[1].trim();
         console.log('[可乐] AI发布朋友圈 (sendPhotoMessage):', momentText);
 
-        // 提取内嵌的图片描述 [配图:xxx]（朋友圈专用格式）
-        const images = [];
-        const embeddedPhotoRegex = /\[配图[：:]\s*(.+?)\]/g;
-        let embeddedMatch;
-        while ((embeddedMatch = embeddedPhotoRegex.exec(momentText)) !== null) {
-          images.push(embeddedMatch[1].trim());
-        }
-        // 移除内嵌的配图标签，保留纯文案
-        momentText = momentText.replace(embeddedPhotoRegex, '').trim();
+        // 提取内嵌的图片描述 [配图:xxx]
+        const { images, cleanText } = extractEmbeddedPhotos(momentText);
+        momentText = cleanText;
 
         addMomentToContact(contact.id, { text: momentText, images: images });
         showNotificationBanner('微信', `${contact.name}发布了一条朋友圈`);
-        saveSettingsDebounced();
+        requestSave();
         continue;
       }
 
@@ -1971,7 +2441,7 @@ export async function sendPhotoMessage(description) {
           }
         }
         // 立即保存撤回状态
-        saveSettingsDebounced();
+        requestSave();
         if (currentChatIndex === contactIndex) {
           openChat(currentChatIndex);
         }
@@ -2001,10 +2471,10 @@ export async function sendPhotoMessage(description) {
             appendMessage('assistant', textContent, contact, false, parsedText.quote);
           } else {
             contact.unreadCount = (contact.unreadCount || 0) + 1;
-            saveSettingsDebounced();
+            requestSave();
             refreshChatList(); // 立即刷新让红点逐个增加
           }
-          saveSettingsDebounced();
+          requestSave();
         }
         console.log(`[可乐] AI发起${callExtractPhoto.type === 'voice' ? '语音' : '视频'}通话 (sendPhotoMessage)`);
         if (callExtractPhoto.type === 'voice') {
@@ -2051,7 +2521,7 @@ export async function sendPhotoMessage(description) {
           appendStickerMessage('assistant', stickerUrl, contact);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
+          requestSave();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       } else if (aiIsPhoto) {
@@ -2068,7 +2538,7 @@ export async function sendPhotoMessage(description) {
           appendPhotoMessage('assistant', aiMsg, contact);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
+          requestSave();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       } else {
@@ -2109,7 +2579,7 @@ export async function sendPhotoMessage(description) {
             lastHistMsg.content = '';
           }
           // 立即保存撤回状态
-          saveSettingsDebounced();
+          requestSave();
           if (currentChatIndex === contactIndex) {
             openChat(currentChatIndex);
           }
@@ -2129,7 +2599,7 @@ export async function sendPhotoMessage(description) {
           appendMessage('assistant', aiMsg, contact, aiIsVoice, aiQuote);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
+          requestSave();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       }
@@ -2147,19 +2617,22 @@ export async function sendPhotoMessage(description) {
     lastAiMsg = lastParsed.content;
     lastAiMsg = replaceMessagePlaceholders(lastAiMsg);
     contact.lastMessage = lastStickerUrl ? '[表情]' : (lastPhotoMatch ? '[照片]' : (lastVoiceMatch ? '[语音消息]' : lastAiMsg));
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     checkSummaryReminder(contact);
 
     // 尝试触发朋友圈生成（随机触发+30条保底）
     tryTriggerMomentAfterChat(contactIndex);
 
+    // 尝试触发语音/视频通话（随机触发+保底机制）
+    tryTriggerCallAfterChat(contactIndex);
+
   } catch (err) {
     if (currentChatIndex === contactIndex) {
       hideTypingIndicator();
     }
     console.error('[可乐] AI 调用失败:', err);
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     if (currentChatIndex === contactIndex) {
       appendMessage('assistant', `⚠️ ${err.message}`, contact);
@@ -2375,7 +2848,7 @@ export async function sendBatchMessages(messages) {
   }
 
   // 立即保存，确保用户消息不会丢失
-  saveSettingsDebounced();
+  saveNow();
   refreshChatList();
 
   // 第二步：调用AI（一次性）
@@ -2386,7 +2859,17 @@ export async function sendBatchMessages(messages) {
 
   try {
     const { callAI } = await import('./ai.js');
-    const combinedPrompt = promptParts.join('\n');
+    let combinedPrompt = promptParts.join('\n');
+
+    // 如果有选择的时间，添加时间上下文
+    const selectedTime = getSelectedTime();
+    if (selectedTime) {
+      const timeDate = new Date(selectedTime);
+      const timeStr = `${timeDate.getFullYear()}年${timeDate.getMonth() + 1}月${timeDate.getDate()}日 ${timeDate.getHours().toString().padStart(2, '0')}:${timeDate.getMinutes().toString().padStart(2, '0')}`;
+      combinedPrompt = `[当前时间：${timeStr}]\n${combinedPrompt}`;
+      clearSelectedTime();
+    }
+
     const aiResponse = await callAI(contact, combinedPrompt);
 
     // 只有用户还在当前聊天时才隐藏打字指示器
@@ -2435,7 +2918,7 @@ export async function sendBatchMessages(messages) {
           }
         }
         // 立即保存撤回状态
-        saveSettingsDebounced();
+        requestSave();
         if (currentChatIndex === contactIndex) {
           openChat(currentChatIndex);
         }
@@ -2465,10 +2948,10 @@ export async function sendBatchMessages(messages) {
             appendMessage('assistant', textContent, contact, false, parsedText.quote);
           } else {
             contact.unreadCount = (contact.unreadCount || 0) + 1;
-            saveSettingsDebounced();
+            requestSave();
             refreshChatList(); // 立即刷新让红点逐个增加
           }
-          saveSettingsDebounced();
+          requestSave();
         }
         console.log(`[可乐] AI发起${callExtractBatch.type === 'voice' ? '语音' : '视频'}通话 (sendBatchMessages)`);
         if (callExtractBatch.type === 'voice') {
@@ -2485,15 +2968,9 @@ export async function sendBatchMessages(messages) {
         let momentText = momentMatchBatch[1].trim();
         console.log('[可乐] AI发布朋友圈 (sendBatchMessages):', momentText);
 
-        // 提取内嵌的图片描述 [配图:xxx]（朋友圈专用格式）
-        const images = [];
-        const embeddedPhotoRegex = /\[配图[：:]\s*(.+?)\]/g;
-        let embeddedMatch;
-        while ((embeddedMatch = embeddedPhotoRegex.exec(momentText)) !== null) {
-          images.push(embeddedMatch[1].trim());
-        }
-        // 移除内嵌的配图标签，保留纯文案
-        momentText = momentText.replace(embeddedPhotoRegex, '').trim();
+        // 提取内嵌的图片描述 [配图:xxx]
+        const { images, cleanText } = extractEmbeddedPhotos(momentText);
+        momentText = cleanText;
 
         // 检查后续消息是否有配图（兼容旧格式[照片:]）
         for (let j = i + 1; j < aiMessages.length && j < i + 5; j++) {
@@ -2512,7 +2989,7 @@ export async function sendBatchMessages(messages) {
 
         // 显示顶部通知横幅
         showNotificationBanner('微信', `${contact.name}发布了一条朋友圈`);
-        saveSettingsDebounced();
+        requestSave();
         refreshChatList();
         continue; // 跳过后续处理，继续下一条消息
       }
@@ -2567,7 +3044,7 @@ export async function sendBatchMessages(messages) {
           lastHistMsg.content = '';
         }
         // 立即保存撤回状态
-        saveSettingsDebounced();
+        requestSave();
         if (currentChatIndex === contactIndex) {
           openChat(currentChatIndex);
         }
@@ -2591,7 +3068,7 @@ export async function sendBatchMessages(messages) {
           appendStickerMessage('assistant', stickerUrl, contact);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
+          requestSave();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       } else if (aiIsPhoto) {
@@ -2606,7 +3083,7 @@ export async function sendBatchMessages(messages) {
           appendPhotoMessage('assistant', aiMsg, contact);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
+          requestSave();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       } else {
@@ -2622,7 +3099,7 @@ export async function sendBatchMessages(messages) {
           appendMessage('assistant', aiMsg, contact, aiIsVoice, aiQuote);
         } else {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
-          saveSettingsDebounced();
+          requestSave();
           refreshChatList(); // 立即刷新让红点逐个增加
         }
       }
@@ -2641,19 +3118,22 @@ export async function sendBatchMessages(messages) {
     lastAiMsg = lastParsed.content;
     lastAiMsg = replaceMessagePlaceholders(lastAiMsg);
     contact.lastMessage = lastStickerUrl ? '[表情]' : (lastPhotoMatch ? '[照片]' : (lastVoiceMatch ? '[语音消息]' : lastAiMsg));
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     checkSummaryReminder(contact);
 
     // 尝试触发朋友圈生成（随机触发+30条保底）
     tryTriggerMomentAfterChat(contactIndex);
 
+    // 尝试触发语音/视频通话（随机触发+保底机制）
+    tryTriggerCallAfterChat(contactIndex);
+
   } catch (err) {
     if (currentChatIndex === contactIndex) {
       hideTypingIndicator();
     }
     console.error('[可乐] AI 调用失败:', err);
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     if (currentChatIndex === contactIndex) {
       appendMessage('assistant', `⚠️ ${err.message}`, contact);
@@ -2697,3 +3177,71 @@ export function showRecalledMessages() {
 
   panel.classList.remove('hidden');
 }
+
+// 尝试触发语音/视频通话（随机触发+保底机制）
+// 语音通话：8%几率，保底120条
+// 视频通话：5%几率，保底200条
+function tryTriggerCallAfterChat(contactIndex) {
+  const settings = getSettings();
+  const contact = settings.contacts?.[contactIndex];
+  if (!contact) return;
+
+  // 初始化计数器
+  if (typeof contact.voiceCallCounter !== 'number') {
+    contact.voiceCallCounter = 0;
+  }
+  if (typeof contact.videoCallCounter !== 'number') {
+    contact.videoCallCounter = 0;
+  }
+
+  // 递增计数器
+  contact.voiceCallCounter++;
+  contact.videoCallCounter++;
+
+  // 检查是否正在通话中（避免重复触发）
+  const voicePanel = document.getElementById('wechat-voice-call-panel');
+  const videoPanel = document.getElementById('wechat-video-call-panel');
+  if ((voicePanel && !voicePanel.classList.contains('hidden')) ||
+      (videoPanel && !videoPanel.classList.contains('hidden'))) {
+    return; // 正在通话中，不触发新通话
+  }
+
+  // 先检查视频通话（5%几率，保底200条）
+  const videoChance = Math.random();
+  const videoGuarantee = contact.videoCallCounter >= 200;
+  if (videoGuarantee || videoChance < 0.05) {
+    console.log(`[可乐] ${contact.name} 触发视频通话保底（计数: ${contact.videoCallCounter}, 随机: ${videoChance.toFixed(3)}）`);
+    contact.voiceCallCounter = 0;
+    contact.videoCallCounter = 0;
+    requestSave();
+    // 延迟1-3秒后发起通话，更自然
+    setTimeout(() => {
+      startVideoCall('ai', contactIndex);
+    }, 1000 + Math.random() * 2000);
+    return;
+  }
+
+  // 再检查语音通话（8%几率，保底120条）
+  const voiceChance = Math.random();
+  const voiceGuarantee = contact.voiceCallCounter >= 120;
+  if (voiceGuarantee || voiceChance < 0.08) {
+    console.log(`[可乐] ${contact.name} 触发语音通话保底（计数: ${contact.voiceCallCounter}, 随机: ${voiceChance.toFixed(3)}）`);
+    contact.voiceCallCounter = 0;
+    contact.videoCallCounter = 0;
+    requestSave();
+    // 延迟1-3秒后发起通话，更自然
+    setTimeout(() => {
+      startVoiceCall('ai', contactIndex);
+    }, 1000 + Math.random() * 2000);
+    return;
+  }
+
+  // 保存计数器
+  requestSave();
+}
+
+// 暴露必要的变量到 window 对象（供 music.js 随机推歌使用）
+Object.defineProperty(window, 'wechatCurrentChatIndex', {
+  get: function() { return currentChatIndex; }
+});
+window.wechatGetSettings = getSettings;

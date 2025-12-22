@@ -2,7 +2,7 @@
  * 总结功能
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { getContext } from '../../../extensions.js';
 import { loadWorldInfo, saveWorldInfo, createNewWorldInfo, world_names } from '../../../world-info.js';
 import { getSettings, getCupName, SUMMARY_MARKER_PREFIX, LOREBOOK_NAME_PREFIX, LOREBOOK_NAME_SUFFIX } from './config.js';
@@ -291,12 +291,20 @@ export function insertSummaryMarker(cupNumber, selectedFilter = null) {
     }
   });
 
-  saveSettingsDebounced();
+  requestSave();
 }
 
 // 生成总结提示词
 export function generateSummaryPrompt(allChats, cupNumber) {
-  let prompt = `你是一位客观、精准的结构化事件记录员。你的任务是像历史学家记录史实一样，从这段【线上聊天记录】中提取并记录关键信息。
+  const settings = getSettings();
+
+  // 如果有自定义模板，使用自定义模板
+  let prompt;
+  if (settings.customSummaryTemplate && settings.customSummaryTemplate.trim()) {
+    prompt = settings.customSummaryTemplate.trim() + '\n\n【线上聊天记录】\n';
+  } else {
+    // 使用默认模板
+    prompt = `你是一位客观、精准的结构化事件记录员。你的任务是像历史学家记录史实一样，从这段【线上聊天记录】中提取并记录关键信息。
 
 【核心原则】
 - 客观准确：只记录实际发生的事件，不添加主观推测或情感评价
@@ -323,6 +331,7 @@ export function generateSummaryPrompt(allChats, cupNumber) {
 
 【线上聊天记录】
 `;
+  }
 
   allChats.forEach(chat => {
     prompt += `\n--- ${chat.contactName} ---\n`;
@@ -479,7 +488,7 @@ export function saveEntryToFavorites(entry, cupNumber, lorebookName) {
 
   lorebook.entries.push(newEntry);
   lorebook.lastUpdated = timeStr;
-  saveSettingsDebounced();
+  requestSave();
 
   return lorebook;
 }
@@ -761,7 +770,7 @@ export async function rollbackSummary() {
       updateProgress('✅ 世界书已清空，已删除...');
     }
 
-    saveSettingsDebounced();
+    requestSave();
 
     // 3) 尝试同步删除酒馆世界书条目（或整个世界书）
     try {

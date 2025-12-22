@@ -2,7 +2,7 @@
  * 表情面板功能
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { getSettings } from './config.js';
 import { showToast } from './toast.js';
 import { isInGroupChat } from './group-chat.js';
@@ -244,7 +244,7 @@ function addStickersFromInput(inputs) {
     // 检查是否已存在
     const exists = settings.stickers.some(s => s.url === url);
     if (exists) {
-      showToast(`已存在: ${name}`, '🧊');
+      showToast(`已存在: ${name}`, 'info');
       continue;
     }
 
@@ -260,7 +260,7 @@ function addStickersFromInput(inputs) {
   }
 
   if (addedCount > 0) {
-    saveSettingsDebounced();
+    requestSave();
     refreshEmojiGrid();
     showToast(`已添加 ${addedCount} 个表情`);
   }
@@ -299,7 +299,7 @@ function addStickerFromFile() {
     }
 
     if (addedCount > 0) {
-      saveSettingsDebounced();
+      requestSave();
       refreshEmojiGrid();
       showToast(`已添加 ${addedCount} 个表情`);
     }
@@ -369,7 +369,7 @@ function deleteSticker(index) {
 
   if (index >= 0 && index < stickers.length) {
     stickers.splice(index, 1);
-    saveSettingsDebounced();
+    requestSave();
     refreshEmojiGrid();
     showToast('表情已删除');
   }
@@ -392,7 +392,7 @@ export function initEmojiPanel() {
 
       const tabName = tab.dataset.tab;
       if (tabName === 'search') {
-        showToast('搜索功能开发中...', '🧊');
+        showToast('搜索功能开发中...', 'info');
       }
     });
   });

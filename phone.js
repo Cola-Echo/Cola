@@ -2,7 +2,7 @@
  * 手机面板：显示/隐藏、自动居中、拖拽定位
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { getSettings } from './config.js';
 import { getCurrentTime } from './utils.js';
 
@@ -136,7 +136,7 @@ export function setupPhoneDrag() {
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     };
-    saveSettingsDebounced();
+    requestSave();
   };
 
   statusbar.addEventListener('mousedown', handleStart);
@@ -151,7 +151,7 @@ export function setupPhoneDrag() {
     phoneManuallyPositioned = false;
     const settings = getSettings();
     delete settings.phonePosition;
-    saveSettingsDebounced();
+    requestSave();
     centerPhoneInViewport({ force: true });
   });
 }
@@ -203,7 +203,7 @@ export function togglePhone() {
 
   phone.classList.toggle('hidden');
   settings.phoneVisible = !phone.classList.contains('hidden');
-  saveSettingsDebounced();
+  requestSave();
 
   if (settings.phoneVisible) {
     const timeEl = document.querySelector('.wechat-statusbar-time');

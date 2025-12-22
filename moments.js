@@ -6,11 +6,12 @@
  * - 用户评论后角色会回复
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { getContext } from '../../../extensions.js';
 import { getSettings } from './config.js';
 import { showToast, showNotificationBanner } from './toast.js';
 import { sleep } from './utils.js';
+import { selectAndCrop } from './cropper.js';
 
 // 当前正在查看的联系人索引
 let currentContactIndex = null;
@@ -175,34 +176,26 @@ function updateMomentsProfile(contactIndex) {
  * 更换朋友圈封面
  */
 function changeMomentsCover() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const settings = getSettings();
+  // 使用裁剪器选择并裁剪封面（16:9比例）
+  selectAndCrop(16 / 9, (croppedImage) => {
+    const settings = getSettings();
 
-        if (currentContactIndex !== null && settings.contacts[currentContactIndex]) {
-          settings.contacts[currentContactIndex].momentsCover = event.target.result;
-        } else {
-          settings.momentsCover = event.target.result;
-        }
-        saveSettingsDebounced();
-
-        const coverEl = document.getElementById('wechat-moments-cover');
-        if (coverEl) {
-          coverEl.style.backgroundImage = `url(${event.target.result})`;
-          const placeholder = coverEl.querySelector('.wechat-moments-cover-placeholder');
-          if (placeholder) placeholder.style.display = 'none';
-        }
-      };
-      reader.readAsDataURL(file);
+    if (currentContactIndex !== null && settings.contacts[currentContactIndex]) {
+      settings.contacts[currentContactIndex].momentsCover = croppedImage;
+    } else {
+      settings.momentsCover = croppedImage;
     }
-  };
-  input.click();
+    requestSave();
+
+    const coverEl = document.getElementById('wechat-moments-cover');
+    if (coverEl) {
+      coverEl.style.backgroundImage = `url(${croppedImage})`;
+      const placeholder = coverEl.querySelector('.wechat-moments-cover-placeholder');
+      if (placeholder) placeholder.style.display = 'none';
+    }
+
+    showToast('封面已更换');
+  });
 }
 
 /**
@@ -614,7 +607,7 @@ function toggleLike(momentIndex) {
     targetMoment.likes.push(userName);
   }
 
-  saveSettingsDebounced();
+  requestSave();
   renderMomentsList(currentContactIndex);
 }
 
@@ -756,15 +749,25 @@ async function sendUserComment() {
 
   targetMoment.comments.push(newComment);
 
-  saveSettingsDebounced();
+  requestSave();
   hideCommentInput();
   renderMomentsList(currentContactIndex);
 
-  // 触发角色回复（异步）- 只有联系人的朋友圈才会回复
+  // 触发角色回复（异步）
   if (contactIndexForReply !== null && targetContactId !== 'user') {
+    // 情况1：联系人的朋友圈 - 联系人回复用户
     setTimeout(() => {
       generateContactReplyToComment(contactIndexForReply, targetMomentIndex, userName, commentText);
     }, 1000 + Math.random() * 2000);
+  } else if (targetContactId === 'user' && currentReplyTo) {
+    // 情况2：用户自己的朋友圈 - 用户回复了某个联系人的评论
+    // 找到被回复的联系人并触发他们的回复
+    const repliedContactIndex = settings.contacts?.findIndex(c => c.name === currentReplyTo);
+    if (repliedContactIndex >= 0) {
+      setTimeout(() => {
+        generateContactReplyToUserMomentComment(repliedContactIndex, targetMomentIndex, userName, commentText, currentReplyTo);
+      }, 1000 + Math.random() * 2000);
+    }
   }
 }
 
@@ -854,16 +857,42 @@ function getLorebookEntriesForContact(contact, settings) {
 }
 
 /**
+ * 清理评论内容，移除AI可能生成的格式标签
+ * @param {string} text - 原始评论内容
+ * @returns {string} - 清理后的评论内容
+ */
+function cleanCommentText(text) {
+  if (!text) return '';
+
+  let cleaned = text.trim();
+
+  // 移除 [评论 xxx] 或 [评论	xxx] 格式（tab或空格分隔）
+  cleaned = cleaned.replace(/^\[评论[\s\t]+[^\]]+\]\s*/i, '');
+
+  // 移除 [评论:xxx] 或 [评论：xxx] 格式
+  cleaned = cleaned.replace(/^\[评论[：:][^\]]*\]\s*/i, '');
+
+  // 移除开头的引号
+  cleaned = cleaned.replace(/^["「『]/, '').replace(/["」』]$/, '');
+
+  return cleaned.trim();
+}
+
+/**
  * 从联系人的世界书中提取可用于评论的人物
  */
 function extractCharactersFromLorebook(contact) {
   const settings = getSettings();
+  const context = getContext();
   const characters = [];
 
   // 获取联系人的角色数据
   const rawData = contact.rawData || {};
   const charData = rawData.data || rawData;
   const charName = charData.name || contact.name || '';
+
+  // 获取用户名，用于排除用户
+  const userName = context?.name1 || settings.wechatId || '';
 
   // 方法1: 从 selectedLorebooks 中查找与当前角色匹配的世界书
   const selectedLorebooks = settings.selectedLorebooks || [];
@@ -889,8 +918,8 @@ function extractCharactersFromLorebook(contact) {
       // 提取所有有内容的条目，不再限制名称长度和关键词过滤
       if (entry.keys && entry.keys.length > 0) {
         const name = entry.keys[0];
-        // 只排除角色本人，其他条目全部包含
-        if (name && name !== charName) {
+        // 排除角色本人和用户
+        if (name && name !== charName && name !== userName) {
           characters.push({
             name: name,
             content: entry.content || ''
@@ -909,8 +938,8 @@ function extractCharactersFromLorebook(contact) {
       // 提取所有有内容的条目
       if (entry.keys && entry.keys.length > 0) {
         const name = entry.keys[0];
-        // 只排除角色本人
-        if (name && name !== charName) {
+        // 排除角色本人和用户
+        if (name && name !== charName && name !== userName) {
           characters.push({
             name: name,
             content: entry.content || ''
@@ -959,25 +988,19 @@ export async function generateNewMomentForContact(contactIndex) {
     if (!settings.momentsData) settings.momentsData = {};
     if (!settings.momentsData[contact.id]) settings.momentsData[contact.id] = [];
 
-    // 提取世界书中的人物用于评论
-    const characters = extractCharactersFromLorebook(contact);
-
-    // 随机生成 3-4 条评论
-    const comments = await generateCommentsFromCharacters(contact, momentContent.text, characters);
-
-    // 创建新动态
+    // 创建新动态（不自动生成评论，等用户主动评论后AI再回复）
     const newMoment = {
       id: Date.now().toString(),
       text: momentContent.text,
       images: momentContent.images || [],
       timestamp: Date.now(),
       likes: [],
-      comments: comments
+      comments: []
     };
 
     // 添加到列表开头
     settings.momentsData[contact.id].unshift(newMoment);
-    saveSettingsDebounced();
+    requestSave();
 
     showNotificationBanner('微信', `${contact.name}发布了一条朋友圈`);
     renderMomentsList(currentContactIndex);
@@ -993,6 +1016,7 @@ export async function generateNewMomentForContact(contactIndex) {
  */
 async function generateMomentContent(contact) {
   const settings = getSettings();
+  const context = getContext();
 
   // 获取 API 配置
   let apiUrl, apiKey, apiModel;
@@ -1020,12 +1044,56 @@ async function generateMomentContent(contact) {
     chatUrl += '/chat/completions';
   }
 
+  // 获取角色世界书设定
+  const lorebookEntries = getLorebookEntriesForContact(contact, settings);
+  let characterInfo = '';
+  if (lorebookEntries.length > 0) {
+    characterInfo = `\n【关于「${contact.name}」的设定】\n${lorebookEntries.join('\n')}\n`;
+    console.log(`[可乐] 朋友圈生成 - ${contact.name} 获取到 ${lorebookEntries.length} 条设定`);
+  }
+
+  // 获取用户设定
+  let userPersonaInfo = '';
+  const userName = context?.name1 || settings.wechatId || '用户';
+  const userPersonas = settings.userPersonas || [];
+  const enabledPersonas = userPersonas.filter(p => p.enabled !== false);
+  if (enabledPersonas.length > 0) {
+    userPersonaInfo = `\n【关于「${userName}」的设定（你认识的人）】\n`;
+    enabledPersonas.forEach(persona => {
+      if (persona.name) userPersonaInfo += `[${persona.name}]\n`;
+      if (persona.content) userPersonaInfo += `${persona.content}\n`;
+    });
+    console.log(`[可乐] 朋友圈生成 - 读取到 ${enabledPersonas.length} 条用户设定`);
+  }
+
+  // 获取聊天历史上下文（读取最近30条消息，确保朋友圈内容与聊天相关）
+  let chatContextInfo = '';
+  if (contact.chatHistory && contact.chatHistory.length > 0) {
+    const recentChat = contact.chatHistory
+      .filter(msg => msg.content && !msg.isRecalled && msg.content.length < 200)
+      .slice(-30);
+    if (recentChat.length > 0) {
+      const chatSummary = recentChat.map(msg => {
+        const speaker = msg.role === 'user' ? userName : contact.name;
+        let c = msg.content;
+        if (c.startsWith('[表情:') || c.startsWith('[语音:') || c.startsWith('[照片:')) c = c.split(']')[0] + ']';
+        return `${speaker}: ${c.substring(0, 60)}${c.length > 60 ? '...' : ''}`;
+      }).join('\n');
+      chatContextInfo = `\n【你和${userName}最近的聊天记录（重要！朋友圈内容要与此相关）】\n${chatSummary}\n`;
+      console.log(`[可乐] 朋友圈生成 - ${contact.name} 加入了 ${recentChat.length} 条聊天历史`);
+    }
+  }
+
   // 随机决定是纯文字还是带图片（60%带图，40%纯文字）
   const withImages = Math.random() < 0.6;
   const imageCount = withImages ? (1 + Math.floor(Math.random() * 4)) : 0; // 1-4张图
 
-  const prompt = `你正在扮演「${contact.name}」，请以这个角色的身份发一条朋友圈动态。
+  // 随机决定这条朋友圈是否与聊天相关（75%聊天相关，25%个人日常）
+  const isChatRelated = Math.random() < 0.75;
+  console.log(`[可乐] 朋友圈生成 - ${contact.name} 类型: ${isChatRelated ? '与聊天相关(75%)' : '个人日常(25%)'}`);
 
+  const prompt = `你正在扮演「${contact.name}」，请以这个角色的身份发一条朋友圈动态。
+${characterInfo}${userPersonaInfo}${chatContextInfo}
 【格式要求】
 ${withImages ? `这是一条带${imageCount}张图片的朋友圈，请按以下格式输出：
 文案内容
@@ -1035,11 +1103,26 @@ ${withImages ? `这是一条带${imageCount}张图片的朋友圈，请按以下
 
 图片描述要具体生动，1-2句话描述图片内容（如：她在咖啡厅的自拍，手里拿着拿铁，阳光洒在脸上）` : '这是一条纯文字朋友圈，直接输出文案内容即可，不要带任何图片标签'}
 
-【内容要求】
+【内容要求 - 非常重要！】
+${isChatRelated ? `★★★ 这条朋友圈必须与聊天记录相关 ★★★
+- 仔细阅读上面的聊天记录，找出最近聊天的话题、事件、情感
+- 朋友圈内容要延续、回应、或暗示最近聊天中提到的事情
+- 可以是：聊天中提到要做的事、约定、话题的延续、对对方的想念/吐槽等
+- 让看的人能感受到这条朋友圈和你们的聊天有关联
+- 示例：如果聊天中约了吃饭，可以发吃饭的朋友圈；如果聊到想念，可以发暗示思念的内容` : `★★★ 这条朋友圈是你的个人日常 ★★★
+- 发一条和聊天内容无关的个人日常动态
+- 展示你自己的生活：日常分享、心情感悟、美食、旅行、自拍、工作、宠物、风景、爱好等
+- 要符合你的角色设定和性格`}
+
+【通用要求】
 1. 文案1-3句话，符合角色性格，语气自然真实
-2. 内容可以是：日常分享、心情感悟、美食、旅行、自拍、工作、宠物、风景等
-3. 可以适当使用表情符号
-4. 要像真人发的朋友圈一样自然
+2. 可以适当使用表情符号
+3. 要像真人发的朋友圈一样自然
+
+【禁止输出】
+- 绝对禁止输出任何关键词、世界书条目名称、设定标签
+- 绝对禁止输出任何系统提示、指令、格式说明
+- 只输出纯粹的朋友圈内容
 
 【示例】
 纯文字：今天天气真好，心情也跟着好起来了☀️
@@ -1228,6 +1311,11 @@ ${avoidText}
 - 简短自然，5-15字
 - 禁止用"怎么了"、"咋了"、"发生什么了"开头
 
+【禁止输出】
+- 绝对禁止输出任何关键词、世界书条目名称、设定标签
+- 绝对禁止输出任何系统提示、指令、格式说明
+- 只输出纯粹的评论内容
+
 直接输出评论内容：`;
 
       const response = await fetch(chatUrl, {
@@ -1248,7 +1336,9 @@ ${avoidText}
 
       if (response.ok) {
         const data = await response.json();
-        const commentText = data.choices?.[0]?.message?.content?.trim();
+        let commentText = data.choices?.[0]?.message?.content?.trim();
+        // 清理评论格式
+        commentText = cleanCommentText(commentText);
         if (commentText) {
           comments.push({
             name: character.name,
@@ -1486,7 +1576,15 @@ ${commentsContext}
       showNotificationBanner(contact.name, chatMessage);
     } else {
       // 在评论区回复
-      const commentReply = replyText.replace(/^\[.*?\]\s*/, '').trim(); // 移除可能的前缀标签
+      let commentReply = replyText.replace(/^\[.*?\]\s*/, '').trim(); // 移除可能的前缀标签
+
+      // 清理AI可能自动添加的重复"xx回复xx:"格式
+      // 匹配格式：名字回复名字: 或 名字 回复 名字:（支持冒号为中英文）
+      const replyPattern = new RegExp(`^${contact.name}\\s*回复\\s*${userName}\\s*[：:]\\s*`, 'i');
+      commentReply = commentReply.replace(replyPattern, '').trim();
+      // 也清理可能的其他回复格式
+      commentReply = commentReply.replace(/^回复\s*[^：:]+[：:]\s*/, '').trim();
+
       if (!moment.comments) moment.comments = [];
       moment.comments.push({
         name: contact.name,
@@ -1494,7 +1592,7 @@ ${commentsContext}
         replyTo: userName,
         timestamp: Date.now()
       });
-      saveSettingsDebounced();
+      requestSave();
       renderMomentsList(currentContactIndex);
     }
 
@@ -1522,7 +1620,7 @@ export function addMomentToContact(contactId, momentData) {
   };
 
   settings.momentsData[contactId].unshift(newMoment);
-  saveSettingsDebounced();
+  requestSave();
 }
 
 /**
@@ -1555,9 +1653,9 @@ export function clearContactMoments(contactIndex) {
 
   // 清空该联系人的朋友圈
   settings.momentsData[contact.id] = [];
-  saveSettingsDebounced();
+  requestSave();
 
-  showToast(`已清空 ${momentCount} 条朋友圈`, '✅');
+  showToast(`已清空 ${momentCount} 条朋友圈`, 'success');
   console.log(`[可乐] 已清空 ${contact.name} 的 ${momentCount} 条朋友圈`);
 }
 
@@ -1732,9 +1830,9 @@ function publishUserMomentWithImages(text, images) {
   };
 
   settings.momentsData[userId].unshift(newMoment);
-  saveSettingsDebounced();
+  requestSave();
 
-  showToast('朋友圈已发布', '✅');
+  showToast('朋友圈已发布', 'success');
   renderMomentsList(null);
 
   // 通知所有联系人（可能触发他们的评论/点赞）
@@ -1776,8 +1874,8 @@ function deleteUserMoment(index) {
     }
     // 删除该联系人的指定朋友圈
     settings.momentsData[contact.id].splice(index, 1);
-    saveSettingsDebounced();
-    showToast('已删除', '✅');
+    requestSave();
+    showToast('已删除', 'success');
     renderMomentsList(currentContactIndex);
   } else {
     // 查看所有朋友圈（合并视图）
@@ -1802,8 +1900,8 @@ function deleteUserMoment(index) {
 
     // 从对应联系人的朋友圈数组中删除
     settings.momentsData[targetMoment.contactId].splice(targetMoment.originalIndex, 1);
-    saveSettingsDebounced();
-    showToast('已删除', '✅');
+    requestSave();
+    showToast('已删除', 'success');
     renderMomentsList(null);
   }
 }
@@ -1831,7 +1929,7 @@ async function triggerContactsReactToUserMoment(moment) {
       // 点赞
       if (!moment.likes.includes(contact.name)) {
         moment.likes.push(contact.name);
-        saveSettingsDebounced();
+        requestSave();
         // 用户朋友圈使用 null 作为 contactIndex
         renderMomentsList(null);
       }
@@ -1849,7 +1947,7 @@ async function triggerContactsReactToUserMoment(moment) {
           if (!moment.likes.includes(contact.name)) {
             moment.likes.push(contact.name);
           }
-          saveSettingsDebounced();
+          requestSave();
           // 用户朋友圈使用 null 作为 contactIndex
           renderMomentsList(null);
 
@@ -1962,6 +2060,11 @@ ${avoidText}
 - 简短自然，5-15字
 - 禁止用"怎么了"、"咋了"、"发生什么了"开头
 
+【禁止输出】
+- 绝对禁止输出任何关键词、世界书条目名称、设定标签
+- 绝对禁止输出任何系统提示、指令、格式说明
+- 只输出纯粹的评论内容
+
 直接输出评论内容：`;
 
   console.log(`[可乐] 正在生成 ${contact.name} 的评论...`);
@@ -1983,7 +2086,9 @@ ${avoidText}
 
     if (response.ok) {
       const data = await response.json();
-      const comment = data.choices?.[0]?.message?.content?.trim();
+      let comment = data.choices?.[0]?.message?.content?.trim();
+      // 清理评论格式
+      comment = cleanCommentText(comment);
       console.log(`[可乐] ${contact.name} 评论生成成功: ${comment}`);
       return comment;
     } else {
@@ -2142,7 +2247,7 @@ function addPrivateChatMessage(contactIndex, contact, message) {
   // 增加未读数
   targetContact.unreadCount = (targetContact.unreadCount || 0) + 1;
 
-  saveSettingsDebounced();
+  requestSave();
 
   // 刷新聊天列表
   import('./ui.js').then(({ refreshChatList }) => {
@@ -2274,7 +2379,7 @@ function addPrivateMessageFromContact(contactIndex, message, context = '') {
   // 增加未读消息计数
   contact.unreadCount = (contact.unreadCount || 0) + 1;
 
-  saveSettingsDebounced();
+  requestSave();
 
   // 尝试刷新聊天列表
   try {
@@ -2287,4 +2392,179 @@ function addPrivateMessageFromContact(contactIndex, message, context = '') {
   }
 
   console.log(`[可乐] ${contact.name} 通过私聊回复:`, message);
+}
+
+/**
+ * 联系人回复用户朋友圈下的评论
+ * 当用户在自己的朋友圈中回复联系人的评论时调用
+ * @param {number} contactIndex - 被回复的联系人索引
+ * @param {number} momentIndex - 朋友圈索引
+ * @param {string} userName - 用户名
+ * @param {string} userComment - 用户的回复内容
+ * @param {string} contactName - 被回复的联系人名称
+ */
+async function generateContactReplyToUserMomentComment(contactIndex, momentIndex, userName, userComment, contactName) {
+  const settings = getSettings();
+  const contact = settings.contacts[contactIndex];
+  if (!contact || !settings.momentsData) return;
+
+  // 用户的朋友圈存储在 'user' 键下
+  const moments = settings.momentsData['user'];
+  if (!moments || !moments[momentIndex]) return;
+
+  const moment = moments[momentIndex];
+
+  // 获取 API 配置
+  let apiUrl, apiKey, apiModel;
+
+  if (contact.useCustomApi) {
+    apiUrl = contact.customApiUrl || settings.apiUrl || '';
+    apiKey = contact.customApiKey || settings.apiKey || '';
+    apiModel = contact.customModel || settings.selectedModel || '';
+  } else {
+    apiUrl = settings.apiUrl || '';
+    apiKey = settings.apiKey || '';
+    apiModel = settings.selectedModel || '';
+  }
+
+  if (!apiUrl) return;
+
+  // 处理 API URL，确保正确拼接
+  let chatUrl = apiUrl.replace(/\/+$/, '');
+  if (!chatUrl.includes('/chat/completions')) {
+    if (!chatUrl.endsWith('/v1')) {
+      chatUrl += '/v1';
+    }
+    chatUrl += '/chat/completions';
+  }
+
+  try {
+    // 获取角色世界书设定
+    const lorebookEntries = getLorebookEntriesForContact(contact, settings);
+    let characterInfo = '';
+    if (lorebookEntries.length > 0) {
+      characterInfo = `\n\n【关于「${contact.name}」的设定】\n${lorebookEntries.join('\n')}`;
+      console.log(`[可乐] 用户朋友圈回复 - ${contact.name} 获取到 ${lorebookEntries.length} 条设定`);
+    }
+
+    // 获取用户设定
+    let userPersonaInfo = '';
+    const userPersonas = settings.userPersonas || [];
+    const enabledPersonas = userPersonas.filter(p => p.enabled !== false);
+    if (enabledPersonas.length > 0) {
+      userPersonaInfo = `\n\n【关于「${userName}」的设定】\n`;
+      enabledPersonas.forEach(persona => {
+        if (persona.name) userPersonaInfo += `[${persona.name}]\n`;
+        if (persona.content) userPersonaInfo += `${persona.content}\n`;
+      });
+    }
+
+    // 获取聊天历史上下文
+    let chatContextInfo = '';
+    if (contact.chatHistory && contact.chatHistory.length > 0) {
+      const allChat = contact.chatHistory
+        .filter(msg => msg.content && !msg.isRecalled && msg.content.length < 200);
+      if (allChat.length > 0) {
+        const chatSummary = allChat.map(msg => {
+          const speaker = msg.role === 'user' ? userName : contact.name;
+          let c = msg.content;
+          if (c.startsWith('[表情:') || c.startsWith('[语音:') || c.startsWith('[照片:')) c = c.split(']')[0] + ']';
+          return `${speaker}: ${c.substring(0, 60)}${c.length > 60 ? '...' : ''}`;
+        }).join('\n');
+        chatContextInfo = `\n\n【你和${userName}的聊天记录】\n${chatSummary}`;
+        console.log(`[可乐] 用户朋友圈回复 - ${contact.name} 加入了 ${allChat.length} 条聊天历史`);
+      }
+    }
+
+    // 已有评论列表
+    const existingComments = (moment.comments || []).map(c => {
+      const replyPart = c.replyTo ? `回复${c.replyTo}` : '';
+      return `${c.name}${replyPart}: ${c.text}`;
+    }).join('\n');
+    const commentsContext = existingComments ? `\n\n【已有评论】\n${existingComments}` : '';
+
+    const prompt = `你是「${contact.name}」，${userName}在他/她自己的朋友圈下回复了你的评论，你必须回复他/她。
+${characterInfo}${userPersonaInfo}${chatContextInfo}
+
+${userName}发的朋友圈：
+"${moment.text}"
+${commentsContext}
+
+「${userName}」刚刚回复你说："${userComment}"
+
+【核心要求】
+- 必须回复！你必须选择以下两种方式之一进行回复，不能忽略
+- 严格遵循你的人设：说话方式、语气、口癖、性格特点
+- 回复简短自然（5-20字）
+- 可以用表情符号
+
+【回复方式二选一】
+1. 评论区回复（公开）：直接输出回复内容
+2. 私聊回复（私密的话）：输出格式 [私聊] 消息内容
+
+直接输出回复：`;
+
+    const response = await fetch(chatUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: apiModel,
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 8196,
+        temperature: 1
+      })
+    });
+
+    if (!response.ok) {
+      console.error(`[可乐] 用户朋友圈回复 API 请求失败: ${response.status}`);
+      return;
+    }
+
+    const data = await response.json();
+    const replyText = data.choices?.[0]?.message?.content?.trim();
+
+    if (!replyText) {
+      console.error('[可乐] 用户朋友圈回复 - AI返回空内容');
+      return;
+    }
+
+    console.log(`[可乐] ${contact.name} 回复用户朋友圈评论: ${replyText}`);
+
+    // 判断是私聊还是评论区回复
+    if (replyText.startsWith('[私聊]')) {
+      // 通过私聊回复 - 触发聊天消息
+      const chatMessage = replyText.replace('[私聊]', '').trim();
+
+      // 添加到聊天记录
+      addPrivateMessageFromContact(contactIndex, chatMessage, `关于你的朋友圈评论：「${userComment}」`);
+
+      showNotificationBanner(contact.name, chatMessage);
+    } else {
+      // 在评论区回复
+      let commentReply = replyText.replace(/^\[.*?\]\s*/, '').trim();
+
+      // 清理AI可能自动添加的重复"xx回复xx:"格式
+      const replyPattern = new RegExp(`^${contact.name}\\s*回复\\s*${userName}\\s*[：:]\\s*`, 'i');
+      commentReply = commentReply.replace(replyPattern, '').trim();
+      commentReply = commentReply.replace(/^回复\s*[^：:]+[：:]\s*/, '').trim();
+
+      if (!moment.comments) moment.comments = [];
+      moment.comments.push({
+        name: contact.name,
+        text: commentReply,
+        replyTo: userName,
+        timestamp: Date.now()
+      });
+      requestSave();
+      renderMomentsList(currentContactIndex);
+    }
+
+  } catch (err) {
+    console.error('[可乐] 用户朋友圈回复生成失败:', err);
+  }
 }

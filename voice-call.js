@@ -4,8 +4,9 @@
 
 import { getSettings, splitAIMessages } from './config.js';
 import { currentChatIndex } from './chat.js';
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { refreshChatList } from './ui.js';
+import { escapeHtml } from './utils.js';
 
 // 通话状态
 let callState = {
@@ -318,7 +319,7 @@ export function hangupCall() {
     // AI 对通话结束做出反应（所有情况都触发）
     triggerCallEndReaction(contact, callStatus, callState.initiator, callState.messages);
 
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
   }
 
@@ -372,16 +373,16 @@ function appendCallRecordMessage(role, status, duration, contact) {
     // 已接通：显示通话时长
     callRecordHTML = `
       <div class="wechat-call-record">
-        <span class="wechat-call-record-text">通话时长 ${duration}</span>
         ${phoneIconSVG}
+        <span class="wechat-call-record-text">通话时长 ${duration}</span>
       </div>
     `;
   } else if (status === 'cancelled') {
     // 用户发起未接通：已取消（绿色）
     callRecordHTML = `
       <div class="wechat-call-record">
-        <span class="wechat-call-record-text">已取消</span>
         ${phoneIconSVG}
+        <span class="wechat-call-record-text">已取消</span>
       </div>
     `;
   } else if (status === 'rejected') {
@@ -618,9 +619,15 @@ async function triggerCallEndReaction(contact, callStatus, initiator, callMessag
     // 根据通话内容生成回复
     if (callMessages && callMessages.length > 0) {
       const lastMessages = callMessages.slice(-5).map(m => `${m.role === 'user' ? '用户' : '你'}: ${m.content}`).join('\n');
-      reactionPrompt = `[你们刚才通完电话挂断了。通话最后几句话是：\n${lastMessages}\n\n请对通话结束做出自然的反应，可以是：对通话内容的总结、表达挂断后的心情、期待下次通话等。回复1-2句话即可，简短自然，不要复述通话内容。]`;
+      reactionPrompt = `[语音通话刚刚挂断了，现在回到微信文字聊天。通话最后几句是：
+${lastMessages}
+
+【重要】通话已结束，你现在是发微信消息，不是继续语音通话。你应该对"挂断"这件事本身做反应：
+- 如果是正常告别后挂的：简单告别或表达心情
+- 如果是突然/意外挂断（聊到一半、正在做某事时断了）：表示疑惑，问问怎么回事
+绝对不要继续或延续通话里正在进行的内容或动作。回复1句话，符合你的性格。]`;
     } else {
-      reactionPrompt = '[你们刚才通完电话挂断了。请对通话结束做出自然的反应，可以表达挂断后的心情或期待下次通话。回复1-2句话即可，简短自然。]';
+      reactionPrompt = '[语音通话刚刚挂断了，现在回到微信文字聊天。请对"挂断"做出简单反应，不要假设通话中发生了什么。回复1句话，符合你的性格。]';
     }
   } else {
     return; // 未知状态不处理
@@ -678,7 +685,7 @@ async function triggerCallEndReaction(contact, callStatus, initiator, callMessag
       }
     }
 
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
   } catch (err) {
     console.error('[可乐] AI通话结束反应失败:', err);
@@ -776,12 +783,14 @@ function showCallTypingIndicator() {
   hideCallTypingIndicator();
 
   const typingDiv = document.createElement('div');
-  typingDiv.className = 'wechat-voice-call-msg ai typing-indicator fade-in';
+  typingDiv.className = 'wechat-voice-call-msg ai';
   typingDiv.id = 'wechat-voice-call-typing';
   typingDiv.innerHTML = `
-    <span class="wechat-typing-dot"></span>
-    <span class="wechat-typing-dot"></span>
-    <span class="wechat-typing-dot"></span>
+    <div class="wechat-message-bubble wechat-typing">
+      <span class="wechat-typing-dot"></span>
+      <span class="wechat-typing-dot"></span>
+      <span class="wechat-typing-dot"></span>
+    </div>
   `;
 
   messagesEl.appendChild(typingDiv);
@@ -827,13 +836,6 @@ function renderCallMessages() {
 
   // 滚动到底部
   messagesEl.scrollTop = messagesEl.scrollHeight;
-}
-
-// HTML转义
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }
 
 // 初始化

@@ -2,7 +2,7 @@
  * 历史回顾和日志功能
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { getSettings, LOREBOOK_NAME_PREFIX, LOREBOOK_NAME_SUFFIX } from './config.js';
 import { escapeHtml } from './utils.js';
 import { showToast } from './toast.js';
@@ -48,7 +48,7 @@ export function addErrorLog(error, context = '') {
     settings.errorLogs = settings.errorLogs.slice(0, MAX_LOGS);
   }
 
-  saveSettingsDebounced();
+  requestSave();
   return logEntry;
 }
 
@@ -56,7 +56,7 @@ export function addErrorLog(error, context = '') {
 export function clearErrorLogs() {
   const settings = getSettings();
   settings.errorLogs = [];
-  saveSettingsDebounced();
+  requestSave();
 }
 
 // 刷新日志列表显示
@@ -185,7 +185,7 @@ export function toggleHistoryItem(index, enabled) {
   const settings = getSettings();
   if (settings.selectedLorebooks?.[index]) {
     settings.selectedLorebooks[index].enabled = enabled;
-    saveSettingsDebounced();
+    requestSave();
     showToast(enabled ? '已启用' : '已禁用');
   }
 }
@@ -257,7 +257,7 @@ export function showHistoryDetail(index) {
       const entryIdx = parseInt(toggle.dataset.entryIndex);
       if (settings.selectedLorebooks?.[index]?.entries?.[entryIdx]) {
         settings.selectedLorebooks[index].entries[entryIdx].enabled = toggle.checked;
-        saveSettingsDebounced();
+        requestSave();
       }
     });
   });

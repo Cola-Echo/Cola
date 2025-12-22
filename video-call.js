@@ -4,7 +4,7 @@
 
 import { getSettings, splitAIMessages } from './config.js';
 import { currentChatIndex } from './chat.js';
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { refreshChatList } from './ui.js';
 
 // 通话状态
@@ -94,7 +94,7 @@ function showIncomingCallPage() {
   }
 
   // 隐藏主界面元素，显示来电界面
-  document.getElementById('wechat-video-call-waiting')?.classList.add('hidden');
+  document.getElementById('wechat-video-call-center')?.classList.add('hidden');
   document.getElementById('wechat-video-call-chat')?.classList.add('hidden');
   document.getElementById('wechat-video-call-actions')?.classList.add('hidden');
   incomingEl.classList.remove('hidden');
@@ -126,15 +126,13 @@ function showCallPage() {
   // 隐藏来电界面
   document.getElementById('wechat-video-call-incoming')?.classList.add('hidden');
 
-  // 设置头像 - 使用更安全的方式避免 onerror 内联处理器问题
+  // 设置角色头像（中间圆形）
   const avatarEl = document.getElementById('wechat-video-call-avatar');
-  const remoteAvatarEl = document.getElementById('wechat-video-call-remote-avatar');
   const firstChar = videoCallState.contactName ? videoCallState.contactName.charAt(0) : '?';
 
   setAvatarSafe(avatarEl, videoCallState.contactAvatar, firstChar);
-  setAvatarSafe(remoteAvatarEl, videoCallState.contactAvatar, firstChar);
 
-  // 设置本地头像
+  // 设置用户头像（右上角长方形小窗）
   const localAvatarEl = document.getElementById('wechat-video-call-local-avatar');
   if (localAvatarEl) {
     try {
@@ -145,20 +143,14 @@ function showCallPage() {
     }
   }
 
-  // 设置名称
-  const nameEl = document.getElementById('wechat-video-call-name');
-  if (nameEl) {
-    nameEl.textContent = videoCallState.contactName;
-  }
-
   // 设置状态
   const statusEl = document.getElementById('wechat-video-call-status');
   if (statusEl) {
     statusEl.textContent = '等待对方接受邀请';
   }
 
-  // 显示等待状态
-  document.getElementById('wechat-video-call-waiting')?.classList.remove('hidden');
+  // 显示中间区域
+  document.getElementById('wechat-video-call-center')?.classList.remove('hidden');
   document.getElementById('wechat-video-call-actions')?.classList.remove('hidden');
 
   // 重置时间显示
@@ -213,8 +205,9 @@ function onVideoCallConnected() {
   clearInterval(videoCallState.dotsInterval);
   clearTimeout(videoCallState.connectTimeout);
 
-  // 隐藏等待状态，显示通话状态
-  document.getElementById('wechat-video-call-waiting')?.classList.add('hidden');
+  // 隐藏中间区域的状态文字，保留头像
+  const statusEl = document.getElementById('wechat-video-call-status');
+  if (statusEl) statusEl.classList.add('hidden');
   document.getElementById('wechat-video-call-incoming')?.classList.add('hidden');
   document.getElementById('wechat-video-call-actions')?.classList.remove('hidden');
 
@@ -344,7 +337,7 @@ export function hangupVideoCall() {
     // AI 对通话结束做出反应（所有情况都触发）
     triggerVideoCallEndReaction(contact, callStatus, videoCallState.initiator, videoCallState.messages);
 
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
   }
 
@@ -396,8 +389,8 @@ function appendVideoCallRecordMessage(role, status, duration, contact) {
   if (status === 'connected') {
     callRecordHTML = `
       <div class="wechat-call-record wechat-video-call-record">
-        <span class="wechat-call-record-text">视频通话 ${duration}</span>
         ${cameraIconSVG}
+        <span class="wechat-call-record-text">视频通话 ${duration}</span>
       </div>
     `;
   } else if (status === 'cancelled') {
@@ -719,9 +712,15 @@ async function triggerVideoCallEndReaction(contact, callStatus, initiator, callM
     // 已接通的视频通话正常结束
     if (callMessages && callMessages.length > 0) {
       const lastMessages = callMessages.slice(-5).map(m => `${m.role === 'user' ? '用户' : '你'}: ${m.content}`).join('\n');
-      reactionPrompt = `[你们刚才视频通话结束了。通话最后几句话是：\n${lastMessages}\n\n请对视频通话结束做出自然的反应，可以是：对通话内容的总结、表达挂断后的心情、期待下次视频等。回复1-2句话即可，简短自然，不要复述通话内容。]`;
+      reactionPrompt = `[视频通话刚刚挂断了，现在回到微信文字聊天。通话最后几句是：
+${lastMessages}
+
+【重要】通话已结束，你现在是发微信消息，不是继续视频通话。你应该对"挂断"这件事本身做反应：
+- 如果是正常告别后挂的：简单告别或表达心情
+- 如果是突然/意外挂断（聊到一半、正在做某事时断了）：表示疑惑，问问怎么回事
+绝对不要继续或延续通话里正在进行的内容或动作。回复1句话，符合你的性格。]`;
     } else {
-      reactionPrompt = '[你们刚才视频通话结束了。请对通话结束做出自然的反应，可以表达挂断后的心情或期待下次视频。回复1-2句话即可，简短自然。]';
+      reactionPrompt = '[视频通话刚刚挂断了，现在回到微信文字聊天。请对"挂断"做出简单反应，不要假设通话中发生了什么。回复1句话，符合你的性格。]';
     }
   } else {
     return;
@@ -776,7 +775,7 @@ async function triggerVideoCallEndReaction(contact, callStatus, initiator, callM
       }
     }
 
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
   } catch (err) {
     console.error('[可乐] AI视频通话结束反应失败:', err);
@@ -812,6 +811,8 @@ async function sendVideoCallMessage() {
       if (!videoCallState.isConnected) break;
 
       let reply = part.trim();
+      // 过滤掉 <meme> 标签（视频通话只输出纯文字）
+      reply = reply.replace(/<\s*meme\s*>[\s\S]*?<\s*\/\s*meme\s*>/gi, '').trim();
       reply = reply.replace(/\[.*?\]/g, '').trim();
 
       if (reply) {
@@ -855,12 +856,14 @@ function showVideoCallTypingIndicator() {
   hideVideoCallTypingIndicator();
 
   const typingDiv = document.createElement('div');
-  typingDiv.className = 'wechat-video-call-msg ai typing-indicator fade-in';
+  typingDiv.className = 'wechat-video-call-msg ai';
   typingDiv.id = 'wechat-video-call-typing';
   typingDiv.innerHTML = `
-    <span class="wechat-typing-dot"></span>
-    <span class="wechat-typing-dot"></span>
-    <span class="wechat-typing-dot"></span>
+    <div class="wechat-message-bubble wechat-typing">
+      <span class="wechat-typing-dot"></span>
+      <span class="wechat-typing-dot"></span>
+      <span class="wechat-typing-dot"></span>
+    </div>
   `;
 
   messagesEl.appendChild(typingDiv);
@@ -888,13 +891,6 @@ function addVideoCallMessage(role, content) {
 
   messagesEl.appendChild(msgDiv);
   messagesEl.scrollTop = messagesEl.scrollHeight;
-}
-
-// HTML转义
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }
 
 // 初始化

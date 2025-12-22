@@ -30,7 +30,7 @@ export function injectAuthorNote() {
       return;
     }
 
-    showToast('无法找到作者注释区域', '🧊');
+    showToast('无法找到作者注释区域', 'info');
     console.log('作者注释模板：', template);
   } catch (err) {
     console.error('[可乐] 注入作者注释失败:', err);

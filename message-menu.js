@@ -3,7 +3,7 @@
  */
 
 import { getSettings, SUMMARY_MARKER_PREFIX, splitAIMessages } from './config.js';
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { currentChatIndex, openChat, showTypingIndicator, hideTypingIndicator, appendMessage } from './chat.js';
 import { showToast } from './toast.js';
 import { getContext } from '../../../extensions.js';
@@ -23,6 +23,7 @@ let pendingQuote = null;
 // 菜单项配置
 const menuItems = [
   { id: 'copy', icon: 'copy', text: '复制' },
+  { id: 'transcribe', icon: 'transcribe', text: '转文字', voiceOnly: true },
   { id: 'quote', icon: 'quote', text: '引用' },
   { id: 'recall', icon: 'recall', text: '撤回', userOnly: true },
   { id: 'delete', icon: 'delete', text: '删除' },
@@ -34,6 +35,12 @@ const icons = {
   copy: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
     <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+  </svg>`,
+  transcribe: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+    <line x1="12" y1="19" x2="12" y2="23"/>
+    <line x1="8" y1="23" x2="16" y2="23"/>
   </svg>`,
   quote: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
     <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/>
@@ -56,7 +63,7 @@ const icons = {
 };
 
 // 创建菜单DOM
-function createMenuElement(isUserMessage = false) {
+function createMenuElement(isUserMessage = false, isVoiceMessage = false, voiceTextVisible = false) {
   const menu = document.createElement('div');
   menu.className = 'wechat-msg-menu hidden';
   menu.id = 'wechat-msg-menu';
@@ -67,13 +74,22 @@ function createMenuElement(isUserMessage = false) {
   menuItems.forEach(item => {
     // 跳过仅用户可用的菜单项（如果当前不是用户消息）
     if (item.userOnly && !isUserMessage) return;
+    // 跳过仅语音消息可用的菜单项（如果当前不是语音消息）
+    if (item.voiceOnly && !isVoiceMessage) return;
 
     const menuItem = document.createElement('div');
     menuItem.className = 'wechat-msg-menu-item';
     menuItem.dataset.action = item.id;
+
+    // 转文字按钮根据状态显示不同文本
+    let text = item.text;
+    if (item.id === 'transcribe' && voiceTextVisible) {
+      text = '收起文字';
+    }
+
     menuItem.innerHTML = `
       <div class="wechat-msg-menu-icon">${icons[item.id]}</div>
-      <div class="wechat-msg-menu-text">${item.text}</div>
+      <div class="wechat-msg-menu-text">${text}</div>
     `;
     menuContent.appendChild(menuItem);
   });
@@ -111,12 +127,33 @@ export function showMessageMenu(msgElement, msgIndex, event) {
     isUserMessage = roleAttr === 'user';
   }
 
+  // 检测是否是语音消息
+  const voiceBubble = msgElement.classList?.contains('wechat-voice-bubble')
+    ? msgElement
+    : msgElement.querySelector?.('.wechat-voice-bubble');
+  const isVoiceMessage = !!voiceBubble || msg?.isVoice === true;
+
+  // 检测语音转文字是否已显示
+  let voiceTextVisible = false;
+  if (voiceBubble) {
+    const voiceId = voiceBubble.dataset?.voiceId;
+    if (voiceId) {
+      const textEl = document.getElementById(voiceId);
+      voiceTextVisible = textEl?.classList.contains('visible') || false;
+    }
+  }
+
   // 移除旧菜单并创建新菜单（根据消息类型动态生成）
   let menu = document.getElementById('wechat-msg-menu');
   if (menu) {
     menu.remove();
   }
-  menu = createMenuElement(isUserMessage);
+  menu = createMenuElement(isUserMessage, isVoiceMessage, voiceTextVisible);
+  // 存储语音相关数据
+  if (voiceBubble) {
+    menu.dataset.voiceId = voiceBubble.dataset?.voiceId || '';
+    menu.dataset.voiceContent = voiceBubble.dataset?.voiceContent || '';
+  }
   document.querySelector('.wechat-phone').appendChild(menu);
   bindMenuEvents(menu);
 
@@ -185,13 +222,16 @@ function bindMenuEvents(menu) {
     if (!menuItem) return;
 
     const action = menuItem.dataset.action;
-    handleMenuAction(action, currentMenuMsgIndex);
+    // 传递菜单上存储的语音数据
+    const voiceId = menu.dataset.voiceId;
+    const voiceContent = menu.dataset.voiceContent;
+    handleMenuAction(action, currentMenuMsgIndex, voiceId, voiceContent);
     hideMessageMenu();
   });
 }
 
 // 处理菜单操作
-function handleMenuAction(action, msgIndex) {
+function handleMenuAction(action, msgIndex, voiceId = '', voiceContent = '') {
   const settings = getSettings();
   const groupIndex = getCurrentGroupIndex();
   let chatHistory, contact, groupChat;
@@ -214,6 +254,22 @@ function handleMenuAction(action, msgIndex) {
   switch (action) {
     case 'copy':
       copyMessage(msg.content);
+      break;
+    case 'transcribe':
+      // 切换语音转文字显示
+      if (voiceId) {
+        const textEl = document.getElementById(voiceId);
+        if (textEl) {
+          const isVisible = textEl.classList.contains('visible');
+          if (isVisible) {
+            textEl.classList.remove('visible');
+            textEl.classList.add('hidden');
+          } else {
+            textEl.classList.remove('hidden');
+            textEl.classList.add('visible');
+          }
+        }
+      }
       break;
     case 'quote':
       quoteMessage(msg, groupIndex >= 0, groupChat);
@@ -258,6 +314,12 @@ function copyMessage(content) {
 
 // 引用消息 - 设置待引用状态
 function quoteMessage(msg, isGroupChat = false, groupChat = null) {
+  // 不允许引用撤回的消息
+  if (msg.isRecalled) {
+    showToast('无法引用已撤回的消息');
+    return;
+  }
+
   const settings = getSettings();
   const context = getContext();
 
@@ -391,7 +453,7 @@ export function setQuote(quote) {
 // 删除消息
 function deleteMessage(msgIndex, contact) {
   contact.chatHistory.splice(msgIndex, 1);
-  saveSettingsDebounced();
+  requestSave();
   // 刷新聊天界面
   openChat(currentChatIndex);
   showToast('已删除');
@@ -413,7 +475,7 @@ async function recallMessage(msgIndex, contact) {
   msg.originalContent = msg.content;
   msg.content = '';
 
-  saveSettingsDebounced();
+  requestSave();
   // 刷新聊天界面
   openChat(currentChatIndex);
   showToast('已撤回');
@@ -423,7 +485,22 @@ async function recallMessage(msgIndex, contact) {
     showTypingIndicator(contact);
 
     const { callAI } = await import('./ai.js');
-    const aiResponse = await callAI(contact, '[用户撤回了一条消息]');
+    // 随机决定是否"看到"了撤回的消息（50%几率）
+    const sawMessage = Math.random() < 0.5;
+    const originalContent = msg.originalContent || '一条消息';
+    // 截取前30个字符作为提示
+    const contentHint = originalContent.length > 30 ? originalContent.substring(0, 30) + '...' : originalContent;
+
+    let aiPrompt;
+    if (sawMessage) {
+      // 看到了：可以追问内容，也可以假装没看到
+      aiPrompt = `[用户撤回了一条消息，你刚好看到了内容是：「${contentHint}」。你可以选择：1.假装没看到 2.好奇追问"刚才说什么？" 3.直接回应看到的内容 4.调侃用户撤回。根据你的性格和内容选择合适的反应，不要每次都一样]`;
+    } else {
+      // 没看到：只能好奇或者忽略
+      aiPrompt = `[用户撤回了一条消息，你没来得及看到内容。你可以选择：1.好奇追问"撤什么？" 2.调侃"撤回也没用我看到了"(即使没看到) 3.无视继续聊别的 4.发表情包。根据你的性格选择合适的反应，不要每次都一样]`;
+    }
+
+    const aiResponse = await callAI(contact, aiPrompt);
 
     hideTypingIndicator();
 
@@ -455,7 +532,7 @@ async function recallMessage(msgIndex, contact) {
     }
 
     contact.lastMessage = aiMessages[aiMessages.length - 1];
-    saveSettingsDebounced();
+    requestSave();
 
   } catch (err) {
     hideTypingIndicator();
@@ -469,7 +546,7 @@ function deleteGroupMessage(msgIndex, groupChat) {
   if (groupIndex < 0) return;
 
   groupChat.chatHistory.splice(msgIndex, 1);
-  saveSettingsDebounced();
+  requestSave();
   // 刷新群聊界面
   openGroupChat(groupIndex);
   showToast('已删除');
@@ -494,7 +571,7 @@ async function recallGroupMessage(msgIndex, groupChat) {
   msg.originalContent = msg.content;
   msg.content = '';
 
-  saveSettingsDebounced();
+  requestSave();
   // 刷新群聊界面
   openGroupChat(groupIndex);
   showToast('已撤回');
@@ -502,7 +579,8 @@ async function recallGroupMessage(msgIndex, groupChat) {
 
 // 绑定消息气泡事件
 export function bindMessageBubbleEvents(container) {
-  const bubbles = container.querySelectorAll('.wechat-message-bubble, .wechat-voice-bubble');
+  // 只绑定普通消息气泡，语音气泡由 bindVoiceBubbleEvents 单独处理
+  const bubbles = container.querySelectorAll('.wechat-message-bubble');
 
   bubbles.forEach((bubble, index) => {
     if (bubble.dataset.menuBound) return;
@@ -522,8 +600,6 @@ export function bindMessageBubbleEvents(container) {
         isLongPress = false;
         return;
       }
-      // 语音气泡点击展开文本，不显示菜单
-      if (bubble.classList.contains('wechat-voice-bubble')) return;
 
       e.stopPropagation();
       showMessageMenu(bubble, getRealMsgIndex(container, msgElement), e);

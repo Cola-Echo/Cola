@@ -3,7 +3,7 @@
  * 支持每个联系人独立设置背景，含图片裁剪功能
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { getSettings } from './config.js';
 import { showToast } from './toast.js';
 import { currentChatIndex } from './chat.js';
@@ -375,7 +375,7 @@ function saveChatBackground(imageData) {
   }
 
   contact.chatBackground = imageData;
-  saveSettingsDebounced();
+  requestSave();
 
   // 立即应用背景
   applyChatBackground(imageData);
@@ -390,7 +390,7 @@ function clearChatBackground() {
   if (!contact) return;
 
   delete contact.chatBackground;
-  saveSettingsDebounced();
+  requestSave();
 
   // 清除背景
   applyChatBackground(null);

@@ -4,12 +4,13 @@
 
 console.log('[可乐] main.js 开始加载...');
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave, setupUnloadSave } from './save-manager.js';
 
 import { loadSettings, getSettings, MEME_PROMPT_TEMPLATE } from './config.js';
 import { generatePhoneHTML } from './phone-html.js';
 import { showPage, refreshChatList, updateMePageInfo, getUserPersonaFromST, updateTabBadge } from './ui.js';
 import { showToast } from './toast.js';
+import { ICON_SUCCESS, ICON_INFO } from './icons.js';
 
 import { addContact, refreshContactsList, openContactSettings, saveContactSettings, closeContactSettings, changeContactAvatar, getCurrentEditingContactIndex } from './contacts.js';
 import { openChatByContactId, setCurrentChatIndex, sendMessage, showRecalledMessages, currentChatIndex, openChat } from './chat.js';
@@ -30,6 +31,10 @@ import { getCurrentTime } from './utils.js';
 import { refreshHistoryList, refreshLogsList, clearErrorLogs, initErrorCapture, addErrorLog } from './history-logs.js';
 import { initChatBackground } from './chat-background.js';
 import { initMoments, openMomentsPage, clearContactMoments } from './moments.js';
+import { initRedPacketEvents } from './red-packet.js';
+import { initTransferEvents } from './transfer.js';
+import { initGroupRedPacket } from './group-red-packet.js';
+import { initCropper } from './cropper.js';
 
 function normalizeModelListForSelect(models) {
   return (models || []).map(m => {
@@ -76,7 +81,7 @@ async function refreshModelSelect() {
   const apiKey = document.getElementById('wechat-api-key')?.value?.trim() || settings.apiKey || '';
 
   if (!apiUrl) {
-    showToast('请先填写 API 地址', '🧊');
+    showToast('请先填写 API 地址', 'info');
     return;
   }
 
@@ -94,7 +99,7 @@ async function refreshModelSelect() {
       modelIds.map(id => `<option value="${id}">${id}</option>`).join('');
 
     settings.modelList = modelIds;
-    saveSettingsDebounced();
+    requestSave();
     showToast(`获取到 ${modelIds.length} 个模型`);
   } catch (err) {
     console.error('[可乐] 获取模型列表失败:', err);
@@ -248,7 +253,7 @@ function bindEvents() {
       if (groupChat) {
         groupChat.chatHistory = [];
         groupChat.lastMessage = '';
-        saveSettingsDebounced();
+        requestSave();
         openGroupChat(groupIndex); // 刷新群聊界面
         showToast('群聊记录已清空');
       }
@@ -264,7 +269,7 @@ function bindEvents() {
     if (contact) {
       contact.chatHistory = [];
       contact.lastMessage = '';
-      saveSettingsDebounced();
+      requestSave();
       openChat(currentChatIndex); // 刷新聊天界面
       showToast('聊天记录已清空');
     }
@@ -369,7 +374,7 @@ function bindEvents() {
     if (contentDiv) {
       contentDiv.classList.toggle('hidden', !settings.autoInjectPrompt);
     }
-    saveSettingsDebounced();
+    requestSave();
     if (settings.autoInjectPrompt) injectAuthorNote();
   });
 
@@ -377,7 +382,7 @@ function bindEvents() {
   document.getElementById('wechat-save-author-note')?.addEventListener('click', () => {
     const settings = getSettings();
     settings.authorNoteCustom = document.getElementById('wechat-author-note-content')?.value || '';
-    saveSettingsDebounced();
+    requestSave();
     showToast('作者注释模板已保存');
   });
 
@@ -391,7 +396,7 @@ function bindEvents() {
     if (contentDiv) {
       contentDiv.classList.toggle('hidden', !settings.hakimiBreakLimit);
     }
-    saveSettingsDebounced();
+    requestSave();
     showToast(settings.hakimiBreakLimit ? '哈基米破限已开启' : '哈基米破限已关闭');
   });
 
@@ -399,7 +404,7 @@ function bindEvents() {
   document.getElementById('wechat-save-hakimi')?.addEventListener('click', () => {
     const settings = getSettings();
     settings.hakimiCustomPrompt = document.getElementById('wechat-hakimi-prompt')?.value || '';
-    saveSettingsDebounced();
+    requestSave();
     showToast('破限提示词已保存');
   });
 
@@ -415,7 +420,7 @@ function bindEvents() {
     settings.memeStickersEnabled = !settings.memeStickersEnabled;
     const toggle = document.getElementById('wechat-meme-stickers-toggle');
     toggle?.classList.toggle('on', settings.memeStickersEnabled);
-    saveSettingsDebounced();
+    requestSave();
     showToast(settings.memeStickersEnabled ? 'Meme表情包已启用' : 'Meme表情包已禁用');
   });
 
@@ -532,7 +537,7 @@ function bindEvents() {
     const fetchBtn = document.getElementById('wechat-contact-fetch-model');
 
     if (!apiUrl) {
-      showToast('请先填写API地址', '🧊');
+      showToast('请先填写API地址', 'info');
       return;
     }
 
@@ -547,7 +552,7 @@ function bindEvents() {
         modelList.innerHTML = models.map(m => `<option value="${m}">`).join('');
         showToast(`获取到 ${models.length} 个模型`);
       } else {
-        showToast('未找到可用模型', '🧊');
+        showToast('未找到可用模型', 'info');
       }
     } catch (err) {
       console.error('[可乐] 获取模型失败:', err);
@@ -566,11 +571,11 @@ function bindEvents() {
     const testBtn = document.getElementById('wechat-contact-test-api');
 
     if (!apiUrl) {
-      showToast('请先填写API地址', '🧊');
+      showToast('请先填写API地址', 'info');
       return;
     }
     if (!model) {
-      showToast('请先填写或选择模型', '🧊');
+      showToast('请先填写或选择模型', 'info');
       return;
     }
 
@@ -601,7 +606,7 @@ function bindEvents() {
 
       const data = await response.json();
       const reply = data.choices?.[0]?.message?.content || '';
-      showToast(`✅ 连接成功！回复: ${reply.substring(0, 20)}...`);
+      showToast(`连接成功！回复: ${reply.substring(0, 20)}...`, 'success');
     } catch (err) {
       console.error('[可乐] 测试连接失败:', err);
       showToast('❌ 连接失败: ' + err.message, '⚠️');
@@ -622,7 +627,7 @@ function bindEvents() {
     if (contentDiv) {
       contentDiv.classList.toggle('hidden', !settings.groupAutoInjectPrompt);
     }
-    saveSettingsDebounced();
+    requestSave();
     showToast(settings.groupAutoInjectPrompt ? '群聊提示词注入已开启' : '群聊提示词注入已关闭');
   });
 
@@ -630,7 +635,7 @@ function bindEvents() {
   document.getElementById('wechat-save-group-note')?.addEventListener('click', () => {
     const settings = getSettings();
     settings.userGroupAuthorNote = document.getElementById('wechat-group-author-note')?.value || '';
-    saveSettingsDebounced();
+    requestSave();
     showToast('群聊作者注释已保存');
   });
 
@@ -722,6 +727,10 @@ function bindEvents() {
   initEmojiPanel();
   initChatBackground();
   initMoments();
+  initRedPacketEvents();
+  initTransferEvents();
+  initGroupRedPacket();
+  initCropper();
 
   // 展开面板
   document.getElementById('wechat-expand-close')?.addEventListener('click', closeExpandPanel);
@@ -816,7 +825,7 @@ function bindEvents() {
   document.getElementById('wechat-context-enabled')?.addEventListener('change', (e) => {
     const settings = getSettings();
     settings.contextEnabled = e.target.checked;
-    saveSettingsDebounced();
+    requestSave();
     syncContextEnabledUI(settings.contextEnabled);
   });
 
@@ -824,7 +833,7 @@ function bindEvents() {
   document.getElementById('wechat-context-slider')?.addEventListener('input', (e) => {
     const settings = getSettings();
     settings.contextLevel = parseInt(e.target.value);
-    saveSettingsDebounced();
+    requestSave();
     document.getElementById('wechat-context-value').textContent = e.target.value;
   });
 
@@ -836,7 +845,7 @@ function bindEvents() {
       const index = parseInt(e.target.dataset.index);
       if (Array.isArray(settings.contextTags) && index >= 0 && index < settings.contextTags.length) {
         settings.contextTags.splice(index, 1);
-        saveSettingsDebounced();
+        requestSave();
         refreshContextTags();
       }
       return;
@@ -848,7 +857,7 @@ function bindEvents() {
         settings.contextTags = Array.isArray(settings.contextTags) ? settings.contextTags : [];
         if (!settings.contextTags.includes(tagName.trim())) {
           settings.contextTags.push(tagName.trim());
-          saveSettingsDebounced();
+          requestSave();
           refreshContextTags();
         }
       }
@@ -861,9 +870,52 @@ function bindEvents() {
     const amount = input?.value || '0.00';
     const settings = getSettings();
     settings.walletAmount = amount;
-    saveSettingsDebounced();
+    requestSave();
     updateWalletAmountDisplay();
     document.getElementById('wechat-wallet-panel')?.classList.add('hidden');
+  });
+
+  // 支付密码保存
+  document.getElementById('wechat-save-password-btn')?.addEventListener('click', () => {
+    const input = document.getElementById('wechat-new-password-input');
+    const password = input?.value || '';
+    // 验证是否为6位数字
+    if (!/^\d{6}$/.test(password)) {
+      showToast('请输入6位数字密码', 'info');
+      return;
+    }
+    const settings = getSettings();
+    settings.paymentPassword = password;
+    requestSave();
+    showToast('密码已保存', '✓');
+    document.getElementById('wechat-change-password-panel')?.classList.add('hidden');
+    input.value = '';
+  });
+
+  // 密码输入框只允许数字
+  document.getElementById('wechat-new-password-input')?.addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+  });
+
+  // 总结模板保存
+  document.getElementById('wechat-summary-template-save')?.addEventListener('click', () => {
+    const input = document.getElementById('wechat-summary-template-input');
+    const template = input?.value || '';
+    const settings = getSettings();
+    settings.customSummaryTemplate = template;
+    requestSave();
+    showToast('模板已保存', '✓');
+    document.getElementById('wechat-summary-template-panel')?.classList.add('hidden');
+  });
+
+  // 总结模板恢复默认
+  document.getElementById('wechat-summary-template-reset')?.addEventListener('click', () => {
+    const input = document.getElementById('wechat-summary-template-input');
+    if (input) input.value = '';
+    const settings = getSettings();
+    settings.customSummaryTemplate = '';
+    requestSave();
+    showToast('已恢复默认模板', '✓');
   });
 
   // 总结 API 配置
@@ -879,7 +931,7 @@ function bindEvents() {
     const modelSelect = document.getElementById('wechat-summary-model');
 
     if (!url || !key) {
-      if (statusEl) statusEl.textContent = '🧊 请先填写 URL 和 Key';
+      if (statusEl) statusEl.innerHTML = `${ICON_INFO} 请先填写 URL 和 Key`;
       return;
     }
 
@@ -888,7 +940,7 @@ function bindEvents() {
     try {
       const models = await fetchModelListFromApi(url, key);
       if (models.length === 0) {
-        if (statusEl) statusEl.textContent = '🧊 未找到可用模型';
+        if (statusEl) statusEl.innerHTML = `${ICON_INFO} 未找到可用模型`;
         return;
       }
 
@@ -899,9 +951,9 @@ function bindEvents() {
 
       const settings = getSettings();
       settings.summaryModelList = models;
-      saveSettingsDebounced();
+      requestSave();
 
-      if (statusEl) statusEl.textContent = `✅ 获取到 ${models.length} 个模型`;
+      if (statusEl) statusEl.innerHTML = `${ICON_SUCCESS} 获取到 ${models.length} 个模型`;
     } catch (err) {
       console.error('[可乐] 获取模型列表失败:', err);
       if (statusEl) statusEl.textContent = `⚠️ 获取失败: ${err.message}`;
@@ -915,11 +967,11 @@ function bindEvents() {
     const model = document.getElementById('wechat-summary-model')?.value;
 
     if (!url || !key) {
-      if (statusEl) statusEl.textContent = '🧊 请先填写 URL 和 Key';
+      if (statusEl) statusEl.innerHTML = `${ICON_INFO} 请先填写 URL 和 Key`;
       return;
     }
     if (!model) {
-      if (statusEl) statusEl.textContent = '🧊 请先选择模型';
+      if (statusEl) statusEl.innerHTML = `${ICON_INFO} 请先选择模型`;
       return;
     }
 
@@ -938,7 +990,7 @@ function bindEvents() {
         throw new Error(errData.error?.message || `HTTP ${response.status}`);
       }
 
-      if (statusEl) statusEl.textContent = '✅ 连接成功！';
+      if (statusEl) statusEl.innerHTML = `${ICON_SUCCESS} 连接成功！`;
     } catch (err) {
       console.error('[可乐] 测试连接失败:', err);
       if (statusEl) statusEl.textContent = `⚠️ 连接失败: ${err.message}`;
@@ -955,16 +1007,16 @@ function bindEvents() {
     settings.summaryApiUrl = urlInput?.value?.trim() || '';
     settings.summaryApiKey = keyInput?.value?.trim() || '';
     settings.summarySelectedModel = modelSelect?.value || '';
-    saveSettingsDebounced();
+    requestSave();
 
-    if (statusEl) statusEl.textContent = '✅ 配置已保存';
+    if (statusEl) statusEl.innerHTML = `${ICON_SUCCESS} 配置已保存`;
     setTimeout(() => document.getElementById('wechat-summary-panel')?.classList.add('hidden'), 1500);
   });
 
   document.getElementById('wechat-summary-model')?.addEventListener('change', (e) => {
     const settings = getSettings();
     settings.summarySelectedModel = e.target.value;
-    saveSettingsDebounced();
+    requestSave();
   });
 
   document.getElementById('wechat-summary-execute')?.addEventListener('click', () => {
@@ -993,14 +1045,6 @@ function bindEvents() {
     selectAllSummaryChats(false);
   });
 
-  // 发现页面 - 待开发功能点击提示
-  document.querySelectorAll('.wechat-discover-item-disabled').forEach(item => {
-    item.addEventListener('click', () => {
-      const feature = item.dataset.feature || '此功能';
-      showToast(`「${feature}」正在开发中...`);
-    });
-  });
-
   // 发现页面 - 朋友圈点击
   document.getElementById('wechat-discover-moments')?.addEventListener('click', () => {
     openMomentsPage();
@@ -1011,7 +1055,7 @@ function bindEvents() {
     item.addEventListener('click', () => {
       const service = item.dataset.service;
       // 关闭其他面板
-      const allPanels = ['wechat-context-panel', 'wechat-wallet-panel', 'wechat-summary-panel', 'wechat-history-panel', 'wechat-logs-panel', 'wechat-meme-stickers-panel'];
+      const allPanels = ['wechat-context-panel', 'wechat-wallet-panel', 'wechat-summary-panel', 'wechat-history-panel', 'wechat-logs-panel', 'wechat-meme-stickers-panel', 'wechat-change-password-panel', 'wechat-summary-template-panel'];
 
       if (service === 'summary') {
         allPanels.filter(p => p !== 'wechat-summary-panel').forEach(p => document.getElementById(p)?.classList.add('hidden'));
@@ -1053,8 +1097,22 @@ function bindEvents() {
         return;
       }
 
+      if (service === 'change-password') {
+        allPanels.filter(p => p !== 'wechat-change-password-panel').forEach(p => document.getElementById(p)?.classList.add('hidden'));
+        const panel = document.getElementById('wechat-change-password-panel');
+        panel?.classList.toggle('hidden');
+        return;
+      }
+
+      if (service === 'summary-template') {
+        allPanels.filter(p => p !== 'wechat-summary-template-panel').forEach(p => document.getElementById(p)?.classList.add('hidden'));
+        const panel = document.getElementById('wechat-summary-template-panel');
+        panel?.classList.toggle('hidden');
+        return;
+      }
+
       const label = item.querySelector('span')?.textContent || '该';
-      showToast(`"${label}" 功能开发中...`, '🧊');
+      showToast(`"${label}" 功能开发中...`, 'info');
     });
   });
 
@@ -1194,7 +1252,7 @@ function bindEvents() {
     if (!confirm('确定要清空所有联系人吗？')) return;
     const settings = getSettings();
     settings.contacts = [];
-    saveSettingsDebounced();
+    requestSave();
     refreshContactsList();
     showToast('已清空所有联系人');
   });
@@ -1213,7 +1271,7 @@ function bindEvents() {
       reader.onload = function (event) {
         const settings = getSettings();
         settings.userAvatar = event.target.result;
-        saveSettingsDebounced();
+        requestSave();
         updateMePageInfo();
         showToast('头像已更换');
       };
@@ -1251,7 +1309,7 @@ function bindEvents() {
     settings.apiUrl = apiUrl;
     settings.apiKey = apiKey;
     settings.selectedModel = selectedModel;
-    saveSettingsDebounced();
+    requestSave();
 
     showToast('API 配置已保存');
   });
@@ -1267,12 +1325,12 @@ function bindEvents() {
     modelInput.addEventListener('change', (e) => {
       const settings = getSettings();
       settings.selectedModel = e.target.value.trim();
-      saveSettingsDebounced();
+      requestSave();
     });
     modelInput.addEventListener('input', (e) => {
       const settings = getSettings();
       settings.selectedModel = e.target.value.trim();
-      saveSettingsDebounced();
+      requestSave();
     });
   }
 
@@ -1282,7 +1340,7 @@ function bindEvents() {
     const apiKey = document.getElementById('wechat-api-key')?.value.trim() || '';
 
     if (!apiUrl) {
-      showToast('请先填写 API 地址', '🧊');
+      showToast('请先填写 API 地址', 'info');
       return;
     }
 
@@ -1321,7 +1379,7 @@ function bindEvents() {
 
         const settings = getSettings();
         settings.selectedModel = modelName.trim();
-        saveSettingsDebounced();
+        requestSave();
         showToast('模型已设置');
       }
     }
@@ -1352,7 +1410,7 @@ function bindEvents() {
     const select = document.getElementById('wechat-group-model-select');
 
     if (!apiUrl) {
-      showToast('请先填写群聊 API 地址', '🧊');
+      showToast('请先填写群聊 API 地址', 'info');
       return;
     }
 
@@ -1372,7 +1430,7 @@ function bindEvents() {
       }
 
       settings.groupModelList = modelIds;
-      saveSettingsDebounced();
+      requestSave();
       showToast(`获取到 ${modelIds.length} 个模型`);
     } catch (err) {
       console.error('[可乐] 获取群聊模型列表失败:', err);
@@ -1400,7 +1458,7 @@ function bindEvents() {
 
         const settings = getSettings();
         settings.groupSelectedModel = modelName.trim();
-        saveSettingsDebounced();
+        requestSave();
         showToast('群聊模型已设置');
       }
     }
@@ -1412,7 +1470,7 @@ function bindEvents() {
     const apiKey = document.getElementById('wechat-group-api-key')?.value.trim() || '';
 
     if (!apiUrl) {
-      showToast('请先填写群聊 API 地址', '🧊');
+      showToast('请先填写群聊 API 地址', 'info');
       return;
     }
 
@@ -1446,7 +1504,7 @@ function bindEvents() {
     settings.groupApiUrl = apiUrl;
     settings.groupApiKey = apiKey;
     settings.groupSelectedModel = selectedModel;
-    saveSettingsDebounced();
+    requestSave();
 
     showToast('群聊 API 配置已保存');
   });
@@ -1457,12 +1515,12 @@ function bindEvents() {
     groupModelInput.addEventListener('change', (e) => {
       const settings = getSettings();
       settings.groupSelectedModel = e.target.value.trim();
-      saveSettingsDebounced();
+      requestSave();
     });
     groupModelInput.addEventListener('input', (e) => {
       const settings = getSettings();
       settings.groupSelectedModel = e.target.value.trim();
-      saveSettingsDebounced();
+      requestSave();
     });
   }
 
@@ -1481,7 +1539,7 @@ function bindEvents() {
 
         const settings = getSettings();
         settings.summarySelectedModel = modelName.trim();
-        saveSettingsDebounced();
+        requestSave();
         showToast('总结模型已设置');
       }
     }
@@ -1524,7 +1582,7 @@ function init() {
   loadSettings();
   const settings = getSettings();
   if (seedDefaultUserPersonaFromST(settings)) {
-    saveSettingsDebounced();
+    requestSave();
   }
 
   const phoneHTML = generatePhoneHTML();
@@ -1558,6 +1616,9 @@ function init() {
 
   // 初始化错误捕获
   initErrorCapture();
+
+  // 初始化页面卸载保存
+  setupUnloadSave();
 
   setInterval(() => {
     const phone = document.getElementById('wechat-phone');

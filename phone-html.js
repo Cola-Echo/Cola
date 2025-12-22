@@ -6,6 +6,7 @@
 import { getSettings, defaultSettings, MEME_PROMPT_TEMPLATE, MEME_STICKERS } from './config.js';
 import { getCurrentTime, escapeHtml } from './utils.js';
 import { getUserAvatarHTML, generateChatList, generateContactsList } from './ui.js';
+import { ICON_RED_PACKET, ICON_RED_PACKET_LARGE, ICON_USER } from './icons.js';
 
 // 生成手机界面 HTML
 export function generatePhoneHTML() {
@@ -241,14 +242,14 @@ export function generatePhoneHTML() {
                 <div class="wechat-func-item" data-func="redpacket"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4 8h16" stroke="currentColor" stroke-width="1.5"/></svg></div><span>红包</span></div>
                 <div class="wechat-func-item" data-func="gift"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 8v13M3 12h18" stroke="currentColor" stroke-width="1.5"/><path d="M12 8c-2-4-6-4-6 0s4 0 6 0c2 0 6-4 6 0s-4 4-6 0" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>礼物</span></div>
                 <div class="wechat-func-item" data-func="transfer"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2 10h20" stroke="currentColor" stroke-width="1.5"/><path d="M6 15h4M14 15h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><span>转账</span></div>
-                <div class="wechat-func-item" data-func="multi"><div class="wechat-func-icon green"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><span>多条消息</span></div>
+                <div class="wechat-func-item" data-func="multi"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><span>多条消息</span></div>
               </div>
             </div>
             <div class="wechat-func-page" data-page="1">
               <div class="wechat-func-grid">
                 <div class="wechat-func-item" data-func="voice"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 00-4 4v7a4 4 0 008 0V5a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>语音输入</span></div>
-                <div class="wechat-func-item" data-func="favorites"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M7 7h10M7 12h10M7 17h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><span>收藏</span></div>
-                <div class="wechat-func-item" data-func="contact"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>个人名片</span></div>
+                <div class="wechat-func-item" data-func="time"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span>时间</span></div>
+                <div class="wechat-func-item" data-func="listen"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0118 0v6" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>一起听</span></div>
                 <div class="wechat-func-item" data-func="music"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>音乐</span></div>
               </div>
             </div>
@@ -267,6 +268,36 @@ export function generatePhoneHTML() {
           <div class="wechat-expand-body" id="wechat-expand-body"></div>
           <div class="wechat-expand-footer">
             <button class="wechat-btn wechat-expand-send" id="wechat-expand-send">发送</button>
+          </div>
+        </div>
+        <!-- 时间选择器面板 -->
+        <div class="wechat-time-picker hidden" id="wechat-time-picker">
+          <div class="wechat-time-picker-header">
+            <span class="wechat-time-picker-title">发送时间</span>
+          </div>
+          <div class="wechat-time-picker-display" id="wechat-time-picker-display">2025-12-22 21:33:19</div>
+          <div class="wechat-time-picker-columns">
+            <div class="wechat-time-picker-column" data-type="year">
+              <div class="wechat-time-picker-items" id="wechat-time-picker-year"></div>
+            </div>
+            <div class="wechat-time-picker-column" data-type="month">
+              <div class="wechat-time-picker-items" id="wechat-time-picker-month"></div>
+            </div>
+            <div class="wechat-time-picker-column" data-type="day">
+              <div class="wechat-time-picker-items" id="wechat-time-picker-day"></div>
+            </div>
+            <div class="wechat-time-picker-column" data-type="hour">
+              <div class="wechat-time-picker-items" id="wechat-time-picker-hour"></div>
+            </div>
+            <div class="wechat-time-picker-column" data-type="minute">
+              <div class="wechat-time-picker-items" id="wechat-time-picker-minute"></div>
+            </div>
+            <div class="wechat-time-picker-column" data-type="second">
+              <div class="wechat-time-picker-items" id="wechat-time-picker-second"></div>
+            </div>
+          </div>
+          <div class="wechat-time-picker-footer">
+            <button class="wechat-time-picker-confirm" id="wechat-time-picker-confirm">完成</button>
           </div>
         </div>
         <!-- 表情面板 -->
@@ -303,7 +334,14 @@ export function generatePhoneHTML() {
       ${generateVoiceCallPageHTML()}
       ${generateVideoCallPageHTML()}
       ${generateMusicPanelHTML()}
+      ${generateListenTogetherHTML()}
       ${generateMomentsPageHTML()}
+      ${generateRedPacketPageHTML(settings)}
+      ${generateOpenRedPacketHTML()}
+      ${generateRedPacketDetailHTML(settings)}
+      ${generateTransferPageHTML()}
+      ${generateReceiveTransferPageHTML()}
+      ${generateTransferRefundConfirmHTML()}
     </div>
 
     <!-- 隐藏的文件输入 -->
@@ -385,15 +423,21 @@ function generateDiscoverPageHTML() {
         <!-- 朋友圈 -->
         <div class="wechat-discover-group">
           <div class="wechat-discover-item" id="wechat-discover-moments">
-            <div class="wechat-discover-item-icon">
+            <div class="wechat-discover-item-icon" style="background: transparent;">
               <svg viewBox="0 0 24 24" width="24" height="24">
-                <circle cx="12" cy="12" r="10" stroke="#f59e0b" stroke-width="0" fill="#f59e0b"/>
-                <circle cx="8" cy="10" r="1.5" fill="white"/>
-                <circle cx="12" cy="7" r="1.5" fill="white"/>
-                <circle cx="16" cy="10" r="1.5" fill="white"/>
-                <circle cx="10" cy="14" r="1.5" fill="white"/>
-                <circle cx="14" cy="14" r="1.5" fill="white"/>
-                <circle cx="12" cy="17" r="1.5" fill="white"/>
+                <circle cx="12" cy="12" r="11" fill="#1a1a1a"/>
+                <path d="M12 3 L14.5 7.5 L12 12 Z" fill="#ff0000"/>
+                <path d="M14.5 7.5 L19.5 6.5 L12 12 Z" fill="#ff8800"/>
+                <path d="M19.5 6.5 L21 12 L12 12 Z" fill="#ffff00"/>
+                <path d="M21 12 L19.5 17.5 L12 12 Z" fill="#00ff00"/>
+                <path d="M19.5 17.5 L14.5 16.5 L12 12 Z" fill="#00ffff"/>
+                <path d="M14.5 16.5 L12 21 L12 12 Z" fill="#0088ff"/>
+                <path d="M12 21 L9.5 16.5 L12 12 Z" fill="#0000ff"/>
+                <path d="M9.5 16.5 L4.5 17.5 L12 12 Z" fill="#8800ff"/>
+                <path d="M4.5 17.5 L3 12 L12 12 Z" fill="#ff00ff"/>
+                <path d="M3 12 L4.5 6.5 L12 12 Z" fill="#ff0088"/>
+                <path d="M4.5 6.5 L9.5 7.5 L12 12 Z" fill="#ff0044"/>
+                <path d="M9.5 7.5 L12 3 L12 12 Z" fill="#ff0000"/>
               </svg>
             </div>
             <span class="wechat-discover-item-text">朋友圈</span>
@@ -404,154 +448,6 @@ function generateDiscoverPageHTML() {
           </div>
         </div>
 
-        <!-- 视频号/直播 -->
-        <div class="wechat-discover-group">
-          <div class="wechat-discover-item wechat-discover-item-disabled" data-feature="视频号">
-            <div class="wechat-discover-item-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <circle cx="12" cy="12" r="10" stroke="#f97316" stroke-width="0" fill="#f97316"/>
-                <path d="M10 8l6 4-6 4V8z" fill="white"/>
-              </svg>
-            </div>
-            <span class="wechat-discover-item-text">视频号</span>
-            <div class="wechat-discover-item-right">
-              <span class="wechat-discover-item-badge">待开发</span>
-              <span class="wechat-discover-item-arrow">›</span>
-            </div>
-          </div>
-          <div class="wechat-discover-item wechat-discover-item-disabled" data-feature="直播">
-            <div class="wechat-discover-item-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <circle cx="12" cy="12" r="10" stroke="#ef4444" stroke-width="0" fill="#ef4444"/>
-                <circle cx="12" cy="12" r="3" fill="white"/>
-                <path d="M12 5v2M12 17v2M5 12h2M17 12h2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <span class="wechat-discover-item-text">直播</span>
-            <div class="wechat-discover-item-right">
-              <span class="wechat-discover-item-badge">待开发</span>
-              <span class="wechat-discover-item-arrow">›</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 扫一扫/听一听 -->
-        <div class="wechat-discover-group">
-          <div class="wechat-discover-item wechat-discover-item-disabled" data-feature="扫一扫">
-            <div class="wechat-discover-item-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <rect x="2" y="2" width="20" height="20" rx="2" fill="#3b82f6"/>
-                <path d="M7 3v4H3M17 3v4h4M7 21v-4H3M17 21v-4h4M3 12h18" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <span class="wechat-discover-item-text">扫一扫</span>
-            <div class="wechat-discover-item-right">
-              <span class="wechat-discover-item-badge">待开发</span>
-              <span class="wechat-discover-item-arrow">›</span>
-            </div>
-          </div>
-          <div class="wechat-discover-item wechat-discover-item-disabled" data-feature="听一听">
-            <div class="wechat-discover-item-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <circle cx="12" cy="12" r="10" stroke="#ec4899" stroke-width="0" fill="#ec4899"/>
-                <path d="M9 18V5l12-2v13" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="6" cy="18" r="3" stroke="white" stroke-width="1.5" fill="none"/>
-              </svg>
-            </div>
-            <span class="wechat-discover-item-text">听一听</span>
-            <div class="wechat-discover-item-right">
-              <span class="wechat-discover-item-badge">待开发</span>
-              <span class="wechat-discover-item-arrow">›</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 看一看/搜一搜 -->
-        <div class="wechat-discover-group">
-          <div class="wechat-discover-item wechat-discover-item-disabled" data-feature="看一看">
-            <div class="wechat-discover-item-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <circle cx="12" cy="12" r="10" stroke="#f59e0b" stroke-width="0" fill="#f59e0b"/>
-                <circle cx="12" cy="12" r="4" stroke="white" stroke-width="1.5" fill="none"/>
-                <circle cx="12" cy="12" r="1.5" fill="white"/>
-              </svg>
-            </div>
-            <span class="wechat-discover-item-text">看一看</span>
-            <div class="wechat-discover-item-right">
-              <span class="wechat-discover-item-badge">待开发</span>
-              <span class="wechat-discover-item-arrow">›</span>
-            </div>
-          </div>
-          <div class="wechat-discover-item wechat-discover-item-disabled" data-feature="搜一搜">
-            <div class="wechat-discover-item-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <circle cx="12" cy="12" r="10" stroke="#ef4444" stroke-width="0" fill="#ef4444"/>
-                <circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5" fill="none"/>
-                <path d="M14 14l3 3" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <span class="wechat-discover-item-text">搜一搜</span>
-            <div class="wechat-discover-item-right">
-              <span class="wechat-discover-item-badge">待开发</span>
-              <span class="wechat-discover-item-arrow">›</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 附近的人 -->
-        <div class="wechat-discover-group">
-          <div class="wechat-discover-item wechat-discover-item-disabled" data-feature="附近的人">
-            <div class="wechat-discover-item-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <circle cx="12" cy="12" r="10" stroke="#3b82f6" stroke-width="0" fill="#3b82f6"/>
-                <circle cx="12" cy="10" r="3" stroke="white" stroke-width="1.5" fill="none"/>
-                <path d="M6 19c0-3 3-5 6-5s6 2 6 5" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <span class="wechat-discover-item-text">附近的人</span>
-            <div class="wechat-discover-item-right">
-              <span class="wechat-discover-item-badge">待开发</span>
-              <span class="wechat-discover-item-arrow">›</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 游戏 -->
-        <div class="wechat-discover-group">
-          <div class="wechat-discover-item wechat-discover-item-disabled" data-feature="游戏">
-            <div class="wechat-discover-item-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <circle cx="12" cy="12" r="10" stroke="#22c55e" stroke-width="0" fill="#22c55e"/>
-                <rect x="6" y="9" width="12" height="8" rx="2" stroke="white" stroke-width="1.5" fill="none"/>
-                <circle cx="9" cy="13" r="1" fill="white"/>
-                <circle cx="15" cy="13" r="1" fill="white"/>
-                <path d="M11 11v4M9 13h4" stroke="white" stroke-width="0.8"/>
-              </svg>
-            </div>
-            <span class="wechat-discover-item-text">游戏</span>
-            <div class="wechat-discover-item-right">
-              <span class="wechat-discover-item-badge">待开发</span>
-              <span class="wechat-discover-item-arrow">›</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 小程序 -->
-        <div class="wechat-discover-group">
-          <div class="wechat-discover-item wechat-discover-item-disabled" data-feature="小程序">
-            <div class="wechat-discover-item-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <circle cx="12" cy="12" r="10" stroke="#8b5cf6" stroke-width="0" fill="#8b5cf6"/>
-                <path d="M8 8h3v3H8zM13 8h3v3h-3zM8 13h3v3H8zM13 13h3v3h-3z" stroke="white" stroke-width="1" fill="none"/>
-              </svg>
-            </div>
-            <span class="wechat-discover-item-text">小程序</span>
-            <div class="wechat-discover-item-right">
-              <span class="wechat-discover-item-badge">待开发</span>
-              <span class="wechat-discover-item-arrow">›</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- 底部标签栏 -->
@@ -623,7 +519,7 @@ function generateSettingsPageHTML(settings) {
           <div class="wechat-settings-item wechat-settings-item-vertical">
             <span class="wechat-settings-label">模型选择</span>
             <select class="wechat-settings-input wechat-settings-select" id="wechat-model-select">
-              <option value="">-- 选择模型 --</option>
+              <option value="">请选择模型</option>
               ${(settings.modelList || []).map(m => `<option value="${m}" ${m === settings.selectedModel ? 'selected' : ''}>${m}</option>`).join('')}
             </select>
             <div class="wechat-settings-input-wrapper" style="margin-top: 8px;">
@@ -655,7 +551,7 @@ function generateSettingsPageHTML(settings) {
           <div class="wechat-settings-item wechat-settings-item-vertical">
             <span class="wechat-settings-label">模型选择</span>
             <select class="wechat-settings-input wechat-settings-select" id="wechat-group-model-select">
-              <option value="">-- 选择模型 --</option>
+              <option value="">请选择模型</option>
               ${(settings.groupModelList || []).map(m => `<option value="${m}" ${m === settings.groupSelectedModel ? 'selected' : ''}>${m}</option>`).join('')}
             </select>
             <div class="wechat-settings-input-wrapper" style="margin-top: 8px;">
@@ -795,7 +691,7 @@ function generateServicePageHTML(settings) {
           <div class="wechat-slide-panel-row-label"><span>模型</span></div>
           <div class="wechat-slide-panel-body">
             <select class="wechat-settings-input wechat-settings-select" id="wechat-summary-model">
-              <option value="">-- 选择模型 --</option>
+              <option value="">请选择模型</option>
               ${(settings.summaryModelList || []).map(m => `<option value="${m}" ${m === settings.summarySelectedModel ? 'selected' : ''}>${m}</option>`).join('')}
             </select>
           </div>
@@ -873,9 +769,6 @@ function generateServicePageHTML(settings) {
             <div style="font-size: 10px; color: #666 !important; margin-top: 4px;">每行一个表情包文件名</div>
           </div>
           <button class="wechat-btn wechat-btn-primary wechat-btn-block wechat-btn-small" id="wechat-add-meme-sticker">添加表情包</button>
-          <div style="font-size: 10px; color: var(--wechat-text-secondary); text-align: center; margin-top: 8px;">
-            AI输出 &lt;meme&gt;文件名&lt;/meme&gt; 时自动渲染为图片
-          </div>
         </div>
         <div class="wechat-service-section">
           <div class="wechat-service-section-title">总结功能</div>
@@ -883,12 +776,46 @@ function generateServicePageHTML(settings) {
             <div class="wechat-service-item" data-service="summary"><div class="wechat-service-icon blue"><svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span>总结</span></div>
             <div class="wechat-service-item" data-service="history"><div class="wechat-service-icon blue"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><span>历史回顾</span></div>
             <div class="wechat-service-item" data-service="logs"><div class="wechat-service-icon green"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>日志</span></div>
+            <div class="wechat-service-item" data-service="summary-template"><div class="wechat-service-icon" style="background: linear-gradient(135deg, #607d8b, #455a64);"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span>总结模板</span></div>
           </div>
         </div>
         <div class="wechat-service-section">
           <div class="wechat-service-section-title">AI功能</div>
           <div class="wechat-service-grid">
             <div class="wechat-service-item" data-service="meme-stickers"><div class="wechat-service-icon purple" style="background: linear-gradient(135deg, #9c27b0, #e91e63);"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="9" r="1.5" fill="currentColor"/><path d="M7 14c1.5 3 4 4 5 4s3.5-1 5-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>Meme表情</span></div>
+          </div>
+        </div>
+        <div class="wechat-service-section">
+          <div class="wechat-service-section-title">用户功能</div>
+          <div class="wechat-service-grid">
+            <div class="wechat-service-item" data-service="change-password"><div class="wechat-service-icon" style="background: linear-gradient(135deg, #ff9800, #f57c00);"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5" fill="currentColor"/></svg></div><span>修改密码</span></div>
+          </div>
+        </div>
+        <!-- 修改密码面板 -->
+        <div class="wechat-service-panel hidden" id="wechat-change-password-panel">
+          <div class="wechat-panel-header" style="justify-content: center;">
+            <span class="wechat-panel-title">修改支付密码</span>
+          </div>
+          <div style="padding: 16px;">
+            <div style="font-size: 12px; color: var(--wechat-text-secondary); margin-bottom: 12px; text-align: center;">设置6位数字支付密码，用于转账和红包</div>
+            <input type="password" id="wechat-new-password-input" maxlength="6" pattern="[0-9]*" inputmode="numeric" placeholder="请输入6位数字密码" style="width: 100%; box-sizing: border-box; padding: 12px; font-size: 18px; text-align: center; letter-spacing: 8px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #000;">
+            <div style="font-size: 11px; color: var(--wechat-text-secondary); margin-top: 8px; text-align: center;">只能输入6位数字</div>
+            <button class="wechat-btn wechat-btn-primary wechat-btn-block" id="wechat-save-password-btn" style="margin-top: 16px;">保存密码</button>
+          </div>
+        </div>
+        <!-- 总结模板面板 -->
+        <div class="wechat-service-panel hidden" id="wechat-summary-template-panel">
+          <div class="wechat-panel-header">
+            <span class="wechat-panel-title">自定义总结模板</span>
+            <button class="wechat-panel-close" data-panel="wechat-summary-template-panel">×</button>
+          </div>
+          <div style="padding: 16px;">
+            <div style="font-size: 12px; color: var(--wechat-text-secondary); margin-bottom: 12px;">自定义总结提示词，留空则使用默认模板</div>
+            <textarea id="wechat-summary-template-input" placeholder="输入自定义总结提示词..." style="width: 100%; height: 200px; box-sizing: border-box; padding: 10px; font-size: 13px; color: #000; background: #fff; border: 1px solid #ddd; border-radius: 8px; resize: vertical; line-height: 1.5;">${settings.customSummaryTemplate || ''}</textarea>
+            <div style="display: flex; gap: 10px; margin-top: 12px;">
+              <button class="wechat-btn wechat-btn-block" id="wechat-summary-template-reset" style="flex: 1;">恢复默认</button>
+              <button class="wechat-btn wechat-btn-primary wechat-btn-block" id="wechat-summary-template-save" style="flex: 1;">保存模板</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1106,18 +1033,12 @@ function generateVideoCallPageHTML() {
   return `
     <!-- 视频通话页面 -->
     <div id="wechat-video-call-page" class="wechat-video-call-page hidden">
-      <!-- 背景/对方视频区域 -->
-      <div class="wechat-video-call-bg" id="wechat-video-call-bg">
-        <div class="wechat-video-call-remote-avatar" id="wechat-video-call-remote-avatar"></div>
-      </div>
-
       <!-- 顶部状态栏 -->
       <div class="wechat-video-call-header">
         <button class="wechat-video-call-minimize" id="wechat-video-call-minimize">
           <svg viewBox="0 0 24 24" width="24" height="24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M9 3v18M3 9h6" stroke="currentColor" stroke-width="1.5"/></svg>
         </button>
         <div class="wechat-video-call-info">
-          <span class="wechat-video-call-name" id="wechat-video-call-name"></span>
           <span class="wechat-video-call-time" id="wechat-video-call-time">00:00</span>
         </div>
         <button class="wechat-video-call-switch" id="wechat-video-call-switch" title="切换摄像头">
@@ -1125,13 +1046,13 @@ function generateVideoCallPageHTML() {
         </button>
       </div>
 
-      <!-- 等待接听状态 -->
-      <div class="wechat-video-call-waiting" id="wechat-video-call-waiting">
+      <!-- 中间角色头像区域（圆形） -->
+      <div class="wechat-video-call-center">
         <div class="wechat-video-call-avatar" id="wechat-video-call-avatar"></div>
         <div class="wechat-video-call-status" id="wechat-video-call-status">等待对方接受邀请</div>
       </div>
 
-      <!-- 本地视频/头像小窗 -->
+      <!-- 右上角用户头像小窗（长方形） -->
       <div class="wechat-video-call-local" id="wechat-video-call-local">
         <div class="wechat-video-call-local-avatar" id="wechat-video-call-local-avatar"></div>
       </div>
@@ -1296,6 +1217,343 @@ export function generateMusicPanelHTML() {
           </button>
           <button class="wechat-music-player-btn wechat-music-share-btn" id="wechat-music-player-share">分享</button>
         </div>
+      </div>
+    </div>
+  `;
+}
+
+// 发红包页面 HTML
+function generateRedPacketPageHTML(settings) {
+  return `
+    <!-- 发红包页面 -->
+    <div id="wechat-red-packet-page" class="wechat-red-packet-page hidden">
+      <div class="wechat-navbar wechat-rp-navbar">
+        <button class="wechat-navbar-btn wechat-navbar-back" id="wechat-red-packet-back">‹</button>
+        <span class="wechat-navbar-title">发红包</span>
+        <button class="wechat-navbar-btn">⋯</button>
+      </div>
+      <div class="wechat-rp-content">
+        <div class="wechat-rp-form">
+          <div class="wechat-rp-row">
+            <span class="wechat-rp-label">金额</span>
+            <input type="number" step="0.01" min="0.01" max="200" class="wechat-rp-amount-input" id="wechat-red-packet-amount-input" placeholder="0.00">
+          </div>
+          <div class="wechat-rp-row">
+            <input type="text" class="wechat-rp-message-input" id="wechat-red-packet-message" placeholder="恭喜发财，大吉大利" maxlength="20">
+            <span class="wechat-rp-emoji-btn"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="2" stroke-linecap="round"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="2" stroke-linecap="round"/></svg></span>
+          </div>
+          <div class="wechat-rp-row wechat-rp-cover-row">
+            <span class="wechat-rp-label">红包封面</span>
+            <span class="wechat-rp-arrow">›</span>
+          </div>
+        </div>
+        <div class="wechat-rp-amount-display">
+          <span id="wechat-red-packet-amount-display">¥ 0.00</span>
+        </div>
+        <button class="wechat-rp-submit-btn" id="wechat-red-packet-submit">塞钱进红包</button>
+        <div class="wechat-rp-hint">未领取的红包，将于24小时后发起退款</div>
+      </div>
+      <!-- 密码输入弹窗 -->
+      <div class="wechat-rp-password-modal hidden" id="wechat-red-packet-password-modal">
+        <div class="wechat-rp-password-content">
+          <button class="wechat-rp-password-close" id="wechat-password-modal-close">×</button>
+          <div class="wechat-rp-password-title">请输入支付密码</div>
+          <input type="password" maxlength="6" pattern="[0-9]*" inputmode="numeric" class="wechat-rp-password-input" id="wechat-red-packet-password-input" placeholder="请输入6位密码">
+          <button class="wechat-rp-password-confirm-btn" id="wechat-red-packet-password-confirm">确定</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 开红包弹窗 HTML
+function generateOpenRedPacketHTML() {
+  return `
+    <!-- 开红包弹窗 -->
+    <div id="wechat-open-red-packet-modal" class="wechat-open-rp-modal hidden">
+      <div class="wechat-open-rp-wrapper">
+        <!-- 上半部分（动画时向上滑出） -->
+        <div class="wechat-open-rp-top" id="wechat-open-rp-top">
+          <button class="wechat-open-rp-close" id="wechat-open-rp-close">×</button>
+          <div class="wechat-open-rp-header">
+            <div class="wechat-open-rp-icon">${ICON_RED_PACKET_LARGE}</div>
+            <div class="wechat-open-rp-sender" id="wechat-open-rp-sender">xxx发出的红包</div>
+          </div>
+          <div class="wechat-open-rp-message" id="wechat-open-rp-message">恭喜发财，大吉大利</div>
+        </div>
+        <!-- 開按钮 -->
+        <div class="wechat-open-rp-btn-wrapper">
+          <button class="wechat-open-rp-btn" id="wechat-open-rp-btn">開</button>
+        </div>
+        <!-- 下半部分（动画时向下滑出） -->
+        <div class="wechat-open-rp-bottom" id="wechat-open-rp-bottom"></div>
+      </div>
+      <!-- 底部红包预览条 -->
+      <div class="wechat-open-rp-preview">
+        <span class="wechat-open-rp-preview-icon">${ICON_RED_PACKET}</span>
+        <span class="wechat-open-rp-preview-msg" id="wechat-open-rp-preview-msg">恭喜发财，大吉大利</span>
+        <button class="wechat-open-rp-preview-close" id="wechat-open-rp-preview-close">×</button>
+      </div>
+    </div>
+  `;
+}
+
+// 发转账页面 HTML
+function generateTransferPageHTML() {
+  return `
+    <!-- 发转账页面 -->
+    <div id="wechat-transfer-page" class="wechat-transfer-page hidden">
+      <div class="wechat-navbar wechat-tf-navbar">
+        <button class="wechat-navbar-btn wechat-navbar-back" id="wechat-transfer-back">‹</button>
+        <span class="wechat-navbar-title">转账</span>
+        <button class="wechat-navbar-btn">⋯</button>
+      </div>
+      <div class="wechat-tf-content">
+        <div class="wechat-tf-form">
+          <div class="wechat-tf-row">
+            <span class="wechat-tf-label">金额</span>
+            <input type="number" step="0.01" min="0.01" class="wechat-tf-amount-input" id="wechat-transfer-amount-input" placeholder="0.00">
+          </div>
+          <div class="wechat-tf-row">
+            <input type="text" class="wechat-tf-desc-input" id="wechat-transfer-description" placeholder="添加转账说明" maxlength="30">
+          </div>
+        </div>
+        <div class="wechat-tf-amount-display">
+          <span id="wechat-transfer-amount-display">¥ 0.00</span>
+        </div>
+      </div>
+      <div class="wechat-tf-footer">
+        <button class="wechat-tf-submit-btn" id="wechat-transfer-submit">转账</button>
+        <div class="wechat-tf-hint">转账给好友后对方需确认收款</div>
+      </div>
+      <!-- 密码输入弹窗 -->
+      <div class="wechat-tf-password-modal hidden" id="wechat-transfer-password-modal">
+        <div class="wechat-tf-password-content">
+          <button class="wechat-tf-password-close" id="wechat-transfer-password-close">×</button>
+          <div class="wechat-tf-password-title">请输入支付密码</div>
+          <input type="password" maxlength="6" pattern="[0-9]*" inputmode="numeric" class="wechat-tf-password-input" id="wechat-transfer-password-input" placeholder="请输入6位密码">
+          <button class="wechat-tf-password-confirm-btn" id="wechat-transfer-password-confirm">确定</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 收款页面 HTML
+function generateReceiveTransferPageHTML() {
+  return `
+    <!-- 收款页面 -->
+    <div id="wechat-receive-transfer-page" class="wechat-receive-tf-page hidden">
+      <div class="wechat-navbar wechat-tf-navbar">
+        <button class="wechat-navbar-btn wechat-navbar-back" id="wechat-transfer-receive-back">‹</button>
+        <span class="wechat-navbar-title">转账</span>
+        <span></span>
+      </div>
+      <div class="wechat-receive-tf-content">
+        <div class="wechat-receive-tf-card">
+          <div class="wechat-receive-tf-sender">
+            <div class="wechat-receive-tf-avatar" id="wechat-transfer-receive-avatar"></div>
+            <div class="wechat-receive-tf-name" id="wechat-transfer-receive-name">对方</div>
+          </div>
+          <div class="wechat-receive-tf-amount" id="wechat-transfer-receive-amount">¥0.00</div>
+          <div class="wechat-receive-tf-desc" id="wechat-transfer-receive-desc">转账给你</div>
+          <div class="wechat-receive-tf-actions">
+            <button class="wechat-receive-tf-btn refund" id="wechat-transfer-refund-btn">退还</button>
+            <button class="wechat-receive-tf-btn receive" id="wechat-transfer-receive-btn">收款</button>
+          </div>
+        </div>
+        <div class="wechat-receive-tf-tip">24小时内未确认，将退回给对方</div>
+      </div>
+    </div>
+  `;
+}
+
+// 退还确认框 HTML
+function generateTransferRefundConfirmHTML() {
+  return `
+    <!-- 退还确认框 -->
+    <div id="wechat-transfer-refund-confirm" class="wechat-transfer-confirm-modal hidden">
+      <div class="wechat-transfer-confirm-content">
+        <div class="wechat-transfer-confirm-title">退还转账?</div>
+        <div class="wechat-transfer-confirm-actions">
+          <button class="wechat-transfer-confirm-btn cancel" id="wechat-transfer-refund-cancel">暂不退还</button>
+          <button class="wechat-transfer-confirm-btn confirm" id="wechat-transfer-refund-confirm">退还</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 红包详情页 HTML
+function generateRedPacketDetailHTML(settings) {
+  return `
+    <!-- 红包详情页 -->
+    <div id="wechat-red-packet-detail-page" class="wechat-rp-detail-page hidden">
+      <div class="wechat-rp-detail-header">
+        <button class="wechat-navbar-btn wechat-navbar-back wechat-rp-detail-back" id="wechat-rp-detail-back">‹</button>
+        <span></span>
+        <button class="wechat-navbar-btn">⋯</button>
+      </div>
+      <div class="wechat-rp-detail-top">
+        <div class="wechat-rp-detail-icon">${ICON_RED_PACKET_LARGE}</div>
+        <div class="wechat-rp-detail-sender" id="wechat-rp-detail-sender">xxx发出的红包</div>
+        <div class="wechat-rp-detail-message" id="wechat-rp-detail-message">恭喜发财，大吉大利</div>
+      </div>
+      <div class="wechat-rp-detail-body">
+        <div class="wechat-rp-detail-amount">
+          <span id="wechat-rp-detail-amount">0.00</span>
+          <span class="wechat-rp-detail-unit">元</span>
+        </div>
+        <div class="wechat-rp-detail-tip">已存入零钱，可直接提现 ›</div>
+      </div>
+      <div class="wechat-rp-detail-record">
+        <div class="wechat-rp-detail-record-item">
+          <div class="wechat-rp-detail-claimer-avatar" id="wechat-rp-detail-claimer-avatar">${ICON_USER}</div>
+          <div class="wechat-rp-detail-claimer-info">
+            <div class="wechat-rp-detail-claimer-name" id="wechat-rp-detail-claimer-name">User</div>
+            <div class="wechat-rp-detail-claimer-time" id="wechat-rp-detail-claimer-time">00:00</div>
+          </div>
+          <div class="wechat-rp-detail-claimer-amount" id="wechat-rp-detail-claimer-amount">0.00元</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 一起听功能 HTML
+function generateListenTogetherHTML() {
+  return `
+    <!-- 一起听搜索页面 -->
+    <div id="wechat-listen-search-page" class="wechat-listen-search-page hidden">
+      <div class="wechat-navbar">
+        <button class="wechat-navbar-btn wechat-navbar-back" id="wechat-listen-search-back">
+          <svg viewBox="0 0 24 24" width="24" height="24"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="wechat-navbar-title">一起听</span>
+        <span></span>
+      </div>
+      <div class="wechat-listen-search-content">
+        <div class="wechat-listen-search-box">
+          <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="text" id="wechat-listen-search-input" placeholder="搜索歌曲">
+        </div>
+        <div class="wechat-listen-search-results" id="wechat-listen-search-results">
+          <div class="wechat-listen-search-empty">输入关键词搜索歌曲</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 一起听等待页面 -->
+    <div id="wechat-listen-waiting-page" class="wechat-listen-waiting-page hidden">
+      <div class="wechat-listen-waiting-bg">
+        <div class="wechat-listen-waiting-content">
+          <!-- 用户头像 -->
+          <div class="wechat-listen-waiting-avatar" id="wechat-listen-waiting-avatar"></div>
+          <!-- 歌曲封面 -->
+          <div class="wechat-listen-waiting-cover-wrapper">
+            <img class="wechat-listen-waiting-cover" id="wechat-listen-waiting-cover" src="" alt="封面">
+            <!-- 雷达动画 -->
+            <div class="wechat-listen-radar">
+              <div class="wechat-listen-radar-ring"></div>
+              <div class="wechat-listen-radar-ring"></div>
+              <div class="wechat-listen-radar-ring"></div>
+            </div>
+          </div>
+          <div class="wechat-listen-waiting-text">正在等待<span id="wechat-listen-waiting-name">TA</span><span id="wechat-listen-waiting-dots">...</span></div>
+          <button class="wechat-listen-waiting-cancel" id="wechat-listen-cancel">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 一起听主页面 -->
+    <div id="wechat-listen-together-page" class="wechat-listen-together-page hidden">
+      <!-- 顶部栏 -->
+      <div class="wechat-listen-header">
+        <button class="wechat-listen-back-btn" id="wechat-listen-back-btn">
+          <svg viewBox="0 0 24 24" width="24" height="24"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="wechat-listen-header-title">一起听</span>
+        <button class="wechat-listen-color-btn" id="wechat-listen-color-btn">
+          <svg viewBox="0 0 24 24" width="22" height="22"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <!-- 背景颜色选择器 -->
+      <div class="wechat-listen-color-picker hidden" id="wechat-listen-color-picker">
+        <div class="wechat-listen-color-option" data-bg="starry" title="星空蓝"></div>
+        <div class="wechat-listen-color-option" data-bg="orange" title="活力橙"></div>
+        <div class="wechat-listen-color-option" data-bg="pink" title="可爱粉"></div>
+        <div class="wechat-listen-color-option" data-bg="white" title="纯白"></div>
+      </div>
+
+      <!-- 双头像区域（AI在左，用户在右） -->
+      <div class="wechat-listen-avatars">
+        <div class="wechat-listen-avatar-item" id="wechat-listen-ai-avatar"></div>
+        <div class="wechat-listen-avatar-connector">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 18v-6a9 9 0 0118 0v6" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        </div>
+        <div class="wechat-listen-avatar-item" id="wechat-listen-user-avatar"></div>
+      </div>
+
+      <!-- 歌曲信息（头像下方） -->
+      <div class="wechat-listen-song-info">
+        <div class="wechat-listen-song-name" id="wechat-listen-song-name">歌曲名</div>
+        <div class="wechat-listen-song-artist" id="wechat-listen-song-artist">歌手</div>
+      </div>
+
+      <!-- 唱片区域 -->
+      <div class="wechat-listen-disc-wrapper">
+        <div class="wechat-listen-disc" id="wechat-listen-disc">
+          <img class="wechat-listen-cover" id="wechat-listen-cover" src="" alt="封面">
+        </div>
+      </div>
+
+      <!-- 进度条 -->
+      <div class="wechat-listen-progress">
+        <span class="wechat-listen-time" id="wechat-listen-current-time">0:00</span>
+        <div class="wechat-listen-progress-bar">
+          <div class="wechat-listen-progress-fill" id="wechat-listen-progress-fill"></div>
+          <input type="range" class="wechat-listen-slider" id="wechat-listen-slider" min="0" max="100" value="0">
+        </div>
+        <span class="wechat-listen-time" id="wechat-listen-duration">0:00</span>
+      </div>
+
+      <!-- 聊天消息区域 -->
+      <div class="wechat-listen-messages" id="wechat-listen-messages"></div>
+
+      <!-- 聊天输入框 -->
+      <div class="wechat-listen-chat-input" id="wechat-listen-chat-input">
+        <input type="text" class="wechat-listen-input-text" id="wechat-listen-input-text" placeholder="输入文字...">
+        <button class="wechat-listen-send-btn" id="wechat-listen-send-btn">
+          <svg viewBox="0 0 24 24" width="20" height="20"><line x1="22" y1="2" x2="11" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polygon points="22,2 15,22 11,13 2,9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <!-- 控制按钮（底部） -->
+      <div class="wechat-listen-controls">
+        <button class="wechat-listen-ctrl-btn" id="wechat-listen-star-btn" title="更换背景">
+          <svg viewBox="0 0 24 24" width="20" height="20"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="wechat-listen-ctrl-btn wechat-listen-play-btn" id="wechat-listen-play-btn">
+          <svg viewBox="0 0 24 24" width="24" height="24"><polygon points="5,3 19,12 5,21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="wechat-listen-ctrl-btn" id="wechat-listen-end-btn" title="结束">
+          <svg viewBox="0 0 24 24" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <!-- 换歌面板 -->
+      <div class="wechat-listen-change-panel hidden" id="wechat-listen-change-panel">
+        <div class="wechat-listen-change-header">
+          <span class="wechat-listen-change-title">换一首</span>
+          <button class="wechat-listen-change-close" id="wechat-listen-change-close">
+            <svg viewBox="0 0 24 24" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="wechat-listen-change-search">
+          <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="text" id="wechat-listen-change-input" placeholder="搜索歌曲">
+        </div>
+        <div class="wechat-listen-change-results" id="wechat-listen-change-results"></div>
       </div>
     </div>
   `;

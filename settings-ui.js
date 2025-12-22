@@ -2,7 +2,7 @@
  * 设置页/服务页相关的 UI 逻辑（不包含业务模块）
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave } from './save-manager.js';
 import { getSettings } from './config.js';
 
 export function toggleDarkMode() {
@@ -14,7 +14,7 @@ export function toggleDarkMode() {
   settings.darkMode = !settings.darkMode;
   phone.classList.toggle('wechat-dark', settings.darkMode);
   toggle.classList.toggle('on', settings.darkMode);
-  saveSettingsDebounced();
+  requestSave();
 }
 
 export function refreshContextTags() {

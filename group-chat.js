@@ -2,7 +2,7 @@
  * 群聊功能
  */
 
-import { saveSettingsDebounced } from '../../../../script.js';
+import { requestSave, saveNow } from './save-manager.js';
 import { getContext } from '../../../extensions.js';
 import { getSettings, SUMMARY_MARKER_PREFIX, getUserStickers, parseMemeTag, MEME_PROMPT_TEMPLATE, splitAIMessages } from './config.js';
 import { showToast } from './toast.js';
@@ -26,9 +26,28 @@ const GROUP_CHAT_MAX_AI_MEMBERS = 3;
 // 检查群聊记录是否需要总结提醒
 function checkGroupSummaryReminder(groupChat) {
   if (!groupChat || !groupChat.chatHistory) return;
-  const count = groupChat.chatHistory.length;
-  if (count >= GROUP_CHAT_SUMMARY_REMINDER_THRESHOLD) {
-    showToast(`群聊记录已达${count}条，建议总结`, '⚠️', 4000);
+
+  // 查找最后一个总结标记的位置
+  let lastMarkerIndex = -1;
+  for (let i = groupChat.chatHistory.length - 1; i >= 0; i--) {
+    if (groupChat.chatHistory[i].content?.startsWith(SUMMARY_MARKER_PREFIX) || groupChat.chatHistory[i].isMarker) {
+      lastMarkerIndex = i;
+      break;
+    }
+  }
+
+  // 计算标记之后的消息数量（不含标记本身）
+  const newMsgCount = groupChat.chatHistory.slice(lastMarkerIndex + 1).filter(
+    m => !m.content?.startsWith(SUMMARY_MARKER_PREFIX) && !m.isMarker
+  ).length;
+
+  // 只在刚好达到阈值时提醒一次（通过标记位避免重复提醒）
+  if (newMsgCount >= GROUP_CHAT_SUMMARY_REMINDER_THRESHOLD && !groupChat._summaryReminderShown) {
+    groupChat._summaryReminderShown = true;
+    showToast(`群聊记录已达${newMsgCount}条，建议总结`, '⚠️', 2500);
+  } else if (newMsgCount < GROUP_CHAT_SUMMARY_REMINDER_THRESHOLD) {
+    // 如果消息数低于阈值（可能是总结后），重置标记
+    groupChat._summaryReminderShown = false;
   }
 }
 
@@ -222,7 +241,7 @@ export function enforceGroupChatMemberLimit(groupChat, { toast = false } = {}) {
 
   const trimmed = memberIds.slice(0, GROUP_CHAT_MAX_AI_MEMBERS);
   groupChat.memberIds = trimmed;
-  saveSettingsDebounced();
+  requestSave();
 
   if (toast) {
     showToast(`群聊最多 ${GROUP_CHAT_MAX_AI_MEMBERS} 个成员（+你=4），已自动裁剪`, '⚠️');
@@ -400,7 +419,7 @@ export function showGroupCreateModal() {
         const apiKey = keyInput?.value?.trim();
 
         if (!apiUrl) {
-          showToast('请先填写API地址', '🧊');
+          showToast('请先填写API地址', 'info');
           return;
         }
 
@@ -417,7 +436,7 @@ export function showGroupCreateModal() {
               models.map(m => `<option value="${m}" ${m === currentValue ? 'selected' : ''}>${m}</option>`).join('');
             showToast(`获取到 ${models.length} 个模型`);
           } else {
-            showToast('未找到可用模型', '🧊');
+            showToast('未找到可用模型', 'info');
           }
         } catch (err) {
           console.error('[可乐] 获取模型失败:', err);
@@ -446,7 +465,7 @@ export function showGroupCreateModal() {
         // 更新图标
         apiToggle.textContent = contact.useCustomApi ? '⚙️' : '▼';
 
-        saveSettingsDebounced();
+        requestSave();
       };
 
       item.querySelector('.wechat-group-api-url')?.addEventListener('change', saveApiConfig);
@@ -462,7 +481,7 @@ export function showGroupCreateModal() {
 
         hakimiToggle.classList.toggle('on');
         contact.customHakimiBreakLimit = hakimiToggle.classList.contains('on');
-        saveSettingsDebounced();
+        requestSave();
       });
     });
   }
@@ -561,7 +580,7 @@ export function createGroupChat() {
   if (!settings.groupChats) settings.groupChats = [];
   settings.groupChats.push(groupChat);
 
-  saveSettingsDebounced();
+  requestSave();
   refreshChatList();
   closeGroupCreateModal();
 
@@ -640,6 +659,69 @@ function renderGroupChatHistory(groupChat, members, chatHistory) {
     const isSticker = msg.isSticker === true;
     const isPhoto = msg.isPhoto === true;
     const isMusic = msg.isMusic === true;
+    const isGroupRedPacket = msg.isGroupRedPacket === true;
+    const isGroupTransfer = msg.isGroupTransfer === true;
+
+    // 群红包消息
+    if (isGroupRedPacket && msg.groupRedPacketInfo) {
+      const rpInfo = msg.groupRedPacketInfo;
+      const isDesignated = rpInfo.type === 'designated';
+      const isClaimed = rpInfo.status === 'claimed' || (rpInfo.claimedBy && rpInfo.claimedBy.length >= rpInfo.count);
+      const statusClass = isClaimed ? 'claimed' : '';
+      const designatedLabel = isDesignated ? `<div class="wechat-group-rp-designated-label">给${(rpInfo.targetMemberNames || []).join('、') || '指定成员'}的红包</div>` : '';
+
+      if (msg.role === 'user') {
+        html += `
+          <div class="wechat-message self">
+            <div class="wechat-message-avatar">${getUserAvatarHTML()}</div>
+            <div class="wechat-message-content">
+              <div class="wechat-group-red-packet-bubble ${statusClass}" data-rp-id="${rpInfo.id}">
+                <div class="wechat-group-rp-icon">
+                  <svg viewBox="0 0 24 24" width="40" height="40"><rect x="4" y="2" width="16" height="20" rx="2" fill="#e74c3c"/><rect x="4" y="8" width="16" height="4" fill="#c0392b"/><circle cx="12" cy="10" r="3" fill="#f1c40f"/></svg>
+                </div>
+                <div class="wechat-group-rp-info">
+                  <div class="wechat-group-rp-message">${escapeHtml(rpInfo.message || '恭喜发财，大吉大利')}</div>
+                  ${designatedLabel}
+                  <div class="wechat-group-rp-status ${isClaimed ? '' : 'hidden'}">${isClaimed ? '已领完' : ''}</div>
+                </div>
+              </div>
+              <div class="wechat-group-rp-footer">群红包</div>
+            </div>
+          </div>
+        `;
+      }
+      return;
+    }
+
+    // 群转账消息
+    if (isGroupTransfer && msg.groupTransferInfo) {
+      const tfInfo = msg.groupTransferInfo;
+      const statusText = tfInfo.status === 'received' ? '已收款' :
+                         tfInfo.status === 'refunded' ? '已退还' : '待收款';
+      const statusClass = tfInfo.status || 'pending';
+
+      if (msg.role === 'user') {
+        html += `
+          <div class="wechat-message self">
+            <div class="wechat-message-avatar">${getUserAvatarHTML()}</div>
+            <div class="wechat-message-content">
+              <div class="wechat-group-transfer-bubble ${statusClass}" data-tf-id="${tfInfo.id}">
+                <div class="wechat-group-tf-icon">
+                  <svg viewBox="0 0 24 24" width="36" height="36"><rect x="2" y="4" width="20" height="16" rx="2" fill="#f39c12"/><text x="12" y="14" font-size="8" fill="#fff" text-anchor="middle">¥</text></svg>
+                </div>
+                <div class="wechat-group-tf-info">
+                  <div class="wechat-group-tf-amount">¥${tfInfo.amount.toFixed(2)}</div>
+                  <div class="wechat-group-tf-target">向${escapeHtml(tfInfo.targetMemberName)}转账</div>
+                  <div class="wechat-group-tf-desc">${escapeHtml(tfInfo.description) || '转账'}</div>
+                </div>
+                <div class="wechat-group-tf-status">${statusText}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      return;
+    }
 
     if (msg.role === 'user') {
       // 用户消息
@@ -2054,7 +2136,7 @@ async function syncGroupMembersLorebooks(members, settings) {
   }
 
   if (hasChanges) {
-    saveSettingsDebounced();
+    requestSave();
   }
 }
 
@@ -2132,7 +2214,7 @@ export async function sendGroupMessage(messageText, isMultipleMessages = false, 
   }
 
   // 立即保存，确保用户消息不会丢失
-  saveSettingsDebounced();
+  saveNow();
 
   // 显示打字指示器
   showGroupTypingIndicator(members[0]?.name, members[0]?.id);
@@ -2278,7 +2360,7 @@ export async function sendGroupMessage(messageText, isMultipleMessages = false, 
     }
     groupChat.lastMessageTime = Date.now();
 
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     checkGroupSummaryReminder(groupChat);
 
@@ -2287,7 +2369,7 @@ export async function sendGroupMessage(messageText, isMultipleMessages = false, 
     console.error('[可乐] 群聊 AI 调用失败:', err);
 
     appendGroupMessage('assistant', `⚠️ ${err.message}`, '系统', null, false);
-    saveSettingsDebounced();
+    requestSave();
   }
 }
 
@@ -2354,7 +2436,7 @@ export async function sendGroupStickerMessage(stickerUrl, description = '') {
   groupChat.lastMessageTime = msgTimestamp;
 
   // 立即保存，确保用户消息不会丢失
-  saveSettingsDebounced();
+  saveNow();
 
   // 显示消息
   appendGroupStickerMessage('user', stickerUrl);
@@ -2410,14 +2492,14 @@ export async function sendGroupStickerMessage(stickerUrl, description = '') {
     }
     groupChat.lastMessageTime = Date.now();
 
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     checkGroupSummaryReminder(groupChat);
 
   } catch (err) {
     hideGroupTypingIndicator();
     console.error('[可乐] 群聊表情消息 AI 调用失败:', err);
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     appendGroupMessage('assistant', `⚠️ ${err.message}`, '系统', null, false);
   }
@@ -2515,7 +2597,7 @@ export async function sendGroupPhotoMessage(description) {
   groupChat.lastMessageTime = msgTimestamp;
 
   // 立即保存，确保用户消息不会丢失
-  saveSettingsDebounced();
+  saveNow();
 
   // 显示消息
   appendGroupPhotoMessage('user', description);
@@ -2565,14 +2647,14 @@ export async function sendGroupPhotoMessage(description) {
     }
     groupChat.lastMessageTime = Date.now();
 
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     checkGroupSummaryReminder(groupChat);
 
   } catch (err) {
     hideGroupTypingIndicator();
     console.error('[可乐] 群聊照片消息 AI 调用失败:', err);
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     appendGroupMessage('assistant', `⚠️ ${err.message}`, '系统', null, false);
   }
@@ -2751,7 +2833,7 @@ export async function sendGroupBatchMessages(messages) {
   groupChat.lastMessageTime = msgTimestamp;
 
   // 立即保存，确保用户消息不会丢失
-  saveSettingsDebounced();
+  saveNow();
 
   // 第二步：调用AI（一次性）
   showGroupTypingIndicator(members[0]?.name, members[0]?.id);
@@ -2798,14 +2880,14 @@ export async function sendGroupBatchMessages(messages) {
     }
     groupChat.lastMessageTime = Date.now();
 
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     checkGroupSummaryReminder(groupChat);
 
   } catch (err) {
     hideGroupTypingIndicator();
     console.error('[可乐] 群聊批量消息 AI 调用失败:', err);
-    saveSettingsDebounced();
+    requestSave();
     refreshChatList();
     appendGroupMessage('assistant', `⚠️ ${err.message}`, '系统', null);
   }
