@@ -42,6 +42,8 @@ let listenState = {
   audioElement: null,
   progressInterval: null,
   pauseTimeout: null,  // 暂停后自动播放下一首的计时器
+  playMode: 'normal',  // 播放模式: 'normal' | 'loop' | 'shuffle'
+  songsSinceAIChange: 0,  // AI换歌保底计数器
 };
 
 // 导出图标供其他模块使用
@@ -227,6 +229,8 @@ export async function startListenTogether(song, contactIndex = currentChatIndex)
     audioElement: null,
     progressInterval: null,
     pauseTimeout: null,
+    playMode: 'normal',
+    songsSinceAIChange: 0,
   };
 
   // 隐藏搜索页，显示等待页面
@@ -317,9 +321,112 @@ async function onSongEnded() {
   listenState.isPlaying = false;
   updatePlayButton();
 
-  // 20%几率AI换歌
-  if (Math.random() < 0.2) {
+  // 计数器+1
+  listenState.songsSinceAIChange++;
+
+  // 20%几率AI换歌，或保底5首必换（所有模式下都有效）
+  if (Math.random() < 0.2 || listenState.songsSinceAIChange >= 5) {
+    listenState.songsSinceAIChange = 0;  // 重置计数器
     await aiSelectSong();
+    return;
+  }
+
+  // 根据播放模式处理
+  if (listenState.playMode === 'loop') {
+    // 单曲循环：重新播放当前歌曲
+    await playListenSong();
+  } else if (listenState.playMode === 'shuffle') {
+    // 随机播放：播放随机歌曲
+    await playRandomSong();
+  }
+  // 正常模式不做处理，等待用户操作
+}
+
+/**
+ * 切换单曲循环模式
+ */
+function toggleLoopMode() {
+  const loopBtn = document.getElementById('wechat-listen-loop-btn');
+  const shuffleBtn = document.getElementById('wechat-listen-shuffle-btn');
+
+  if (listenState.playMode === 'loop') {
+    // 取消单曲循环
+    listenState.playMode = 'normal';
+    loopBtn?.classList.remove('active');
+    showToast('已关闭单曲循环');
+  } else {
+    // 开启单曲循环
+    listenState.playMode = 'loop';
+    loopBtn?.classList.add('active');
+    shuffleBtn?.classList.remove('active');
+    showToast('单曲循环');
+  }
+}
+
+/**
+ * 切换随机播放模式
+ */
+function toggleShuffleMode() {
+  const loopBtn = document.getElementById('wechat-listen-loop-btn');
+  const shuffleBtn = document.getElementById('wechat-listen-shuffle-btn');
+
+  if (listenState.playMode === 'shuffle') {
+    // 取消随机播放
+    listenState.playMode = 'normal';
+    shuffleBtn?.classList.remove('active');
+    showToast('已关闭随机播放');
+  } else {
+    // 开启随机播放
+    listenState.playMode = 'shuffle';
+    shuffleBtn?.classList.add('active');
+    loopBtn?.classList.remove('active');
+    showToast('随机播放');
+  }
+}
+
+/**
+ * 随机播放歌曲
+ */
+async function playRandomSong() {
+  try {
+    // 随机关键词列表
+    const keywords = [
+      '热门', '流行', '经典', '抖音', '网红',
+      '伤感', '甜蜜', '治愈', '怀旧', '浪漫',
+      '周杰伦', '林俊杰', '邓紫棋', '薛之谦', '陈奕迅',
+      'Taylor Swift', 'Ed Sheeran', 'Bruno Mars',
+      '说唱', '民谣', '摇滚', '电子', 'R&B'
+    ];
+    const randomKeyword = keywords[Math.floor(Math.random() * keywords.length)];
+
+    // 搜索歌曲
+    const results = await searchMusic(randomKeyword);
+    if (results && results.length > 0) {
+      // 随机选择一首
+      const randomIndex = Math.floor(Math.random() * Math.min(results.length, 10));
+      const newSong = results[randomIndex];
+
+      listenState.currentSong = newSong;
+
+      // 更新界面
+      const coverEl = document.getElementById('wechat-listen-cover');
+      const nameEl = document.getElementById('wechat-listen-song-name');
+      const artistEl = document.getElementById('wechat-listen-song-artist');
+
+      if (coverEl && newSong.cover) coverEl.src = newSong.cover;
+      if (nameEl) nameEl.textContent = newSong.name || '未知歌曲';
+      if (artistEl) artistEl.textContent = newSong.artist || '未知歌手';
+
+      // 播放
+      await playMusic(newSong.id, newSong.platform, newSong.name, newSong.artist);
+      listenState.isPlaying = true;
+      updatePlayButton();
+
+      // AI对新歌的反应
+      await triggerAIAutoNextReaction(newSong);
+    }
+  } catch (e) {
+    console.error('[可乐] 随机播放失败:', e);
   }
 }
 
@@ -504,18 +611,44 @@ function filterListenMessage(text) {
 }
 
 /**
- * 处理AI回复 - 纯文字消息
+ * 处理AI回复 - 纯文字消息，按换行分条发送
  */
 async function processAIResponse(aiResponse) {
   if (!aiResponse) return;
 
-  const parts = splitAIMessages(aiResponse);
+  // 先用 ||| 分割，再按换行分割
+  let parts = splitAIMessages(aiResponse);
 
+  // 对每个部分再按换行分割
+  const allParts = [];
   for (const part of parts) {
+    // 按换行符分割成多条消息
+    const lines = part.split(/\n+/).map(l => l.trim()).filter(l => l);
+    allParts.push(...lines);
+  }
+
+  for (const part of allParts) {
     if (!listenState.isConnected) break;
 
     let reply = filterListenMessage(part);
     if (!reply) continue;
+
+    // 检查是否包含换歌标签
+    const changeSongMatch = reply.match(/\[换歌[：:]\s*(.+?)\]/);
+    if (changeSongMatch) {
+      const songKeyword = changeSongMatch[1].trim();
+      // 显示AI的说明文字（去掉换歌标签）
+      const displayText = reply.replace(/\[换歌[：:][^\]]*\]/g, '').trim();
+      if (displayText) {
+        showListenTypingIndicator();
+        await sleep(400 + Math.random() * 600);
+        hideListenTypingIndicator();
+        addListenMessage('ai', displayText);
+      }
+      // 搜索并播放新歌
+      await changeSongByKeyword(songKeyword, true);
+      continue;
+    }
 
     // 直接发送纯文字消息
     showListenTypingIndicator();
@@ -885,11 +1018,14 @@ function bindListenEvents() {
   // 播放/暂停
   document.getElementById('wechat-listen-play-btn')?.addEventListener('click', handlePlayPauseClick);
 
-  // 星星按钮 - 打开颜色选择器
-  document.getElementById('wechat-listen-color-btn')?.addEventListener('click', toggleColorPicker);
+  // 搜索按钮 - 打开换歌面板
+  document.getElementById('wechat-listen-search-btn')?.addEventListener('click', showChangeSongPanel);
 
-  // 颜色选择器选项点击
-  document.getElementById('wechat-listen-color-picker')?.addEventListener('click', handleColorOptionClick);
+  // 单曲循环按钮
+  document.getElementById('wechat-listen-loop-btn')?.addEventListener('click', toggleLoopMode);
+
+  // 随机播放按钮
+  document.getElementById('wechat-listen-shuffle-btn')?.addEventListener('click', toggleShuffleMode);
 
   // 结束按钮
   document.getElementById('wechat-listen-end-btn')?.addEventListener('click', exitListenTogether);
@@ -1115,6 +1251,8 @@ function cancelListenTogether() {
     audioElement: null,
     progressInterval: null,
     pauseTimeout: null,
+    playMode: 'normal',
+    songsSinceAIChange: 0,
   };
 }
 
@@ -1165,6 +1303,8 @@ export async function exitListenTogether() {
     audioElement: null,
     progressInterval: null,
     pauseTimeout: null,
+    playMode: 'normal',
+    songsSinceAIChange: 0,
   };
 
   // AI 结束一起听后的回复

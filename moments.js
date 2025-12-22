@@ -973,8 +973,6 @@ export async function generateNewMomentForContact(contactIndex) {
     return;
   }
 
-  showToast('正在生成朋友圈...', '⏳');
-
   try {
     // 调用 AI 生成朋友圈内容
     const momentContent = await generateMomentContent(contact);
