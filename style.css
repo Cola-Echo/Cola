@@ -9448,8 +9448,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 40px;
-  padding: 16px 0;
+  gap: 24px;
+  padding: 16px 20px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   flex-shrink: 0;
 }

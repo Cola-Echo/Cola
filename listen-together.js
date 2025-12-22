@@ -1030,6 +1030,12 @@ function bindListenEvents() {
   // 结束按钮
   document.getElementById('wechat-listen-end-btn')?.addEventListener('click', exitListenTogether);
 
+  // 颜色按钮 - 打开颜色选择器
+  document.getElementById('wechat-listen-color-btn')?.addEventListener('click', toggleColorPicker);
+
+  // 颜色选择器选项点击
+  document.getElementById('wechat-listen-color-picker')?.addEventListener('click', handleColorOptionClick);
+
   // 换歌面板关闭
   document.getElementById('wechat-listen-change-close')?.addEventListener('click', hideChangeSongPanel);
 
