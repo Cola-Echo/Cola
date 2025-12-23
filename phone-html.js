@@ -205,28 +205,6 @@ export function generatePhoneHTML() {
             <input type="file" id="wechat-chat-bg-file" accept="image/*" style="display: none;">
           </div>
         </div>
-        <!-- 图片裁剪弹窗 -->
-        <div id="wechat-cropper-modal" class="wechat-modal hidden">
-          <div class="wechat-modal-content wechat-modal-cropper" style="position: relative; max-width: 350px; max-height: 90vh; overflow: hidden;">
-            <button class="wechat-modal-close-x" id="wechat-cropper-cancel">×</button>
-            <div class="wechat-modal-title">裁剪图片</div>
-            <div class="wechat-cropper-container" id="wechat-cropper-container">
-              <canvas id="wechat-cropper-canvas"></canvas>
-              <div class="wechat-cropper-overlay" id="wechat-cropper-overlay">
-                <div class="wechat-cropper-box" id="wechat-cropper-box">
-                  <div class="wechat-cropper-handle nw"></div>
-                  <div class="wechat-cropper-handle ne"></div>
-                  <div class="wechat-cropper-handle sw"></div>
-                  <div class="wechat-cropper-handle se"></div>
-                </div>
-              </div>
-            </div>
-            <div class="wechat-cropper-hint" style="font-size: 11px; color: var(--wechat-text-secondary); text-align: center; margin: 8px 0;">拖动选择区域，拖动角落调整大小</div>
-            <div class="wechat-modal-actions">
-              <button class="wechat-btn wechat-btn-primary" id="wechat-cropper-confirm">确认裁剪</button>
-            </div>
-          </div>
-        </div>
         <div class="wechat-chat">
           <div class="wechat-chat-messages" id="wechat-chat-messages"></div>
         </div>
@@ -248,7 +226,6 @@ export function generatePhoneHTML() {
             <div class="wechat-func-page" data-page="1">
               <div class="wechat-func-grid">
                 <div class="wechat-func-item" data-func="voice"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 00-4 4v7a4 4 0 008 0V5a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>语音输入</span></div>
-                <div class="wechat-func-item" data-func="time"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span>时间</span></div>
                 <div class="wechat-func-item" data-func="listen"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0118 0v6" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>一起听</span></div>
                 <div class="wechat-func-item" data-func="music"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>音乐</span></div>
               </div>
@@ -268,36 +245,6 @@ export function generatePhoneHTML() {
           <div class="wechat-expand-body" id="wechat-expand-body"></div>
           <div class="wechat-expand-footer">
             <button class="wechat-btn wechat-expand-send" id="wechat-expand-send">发送</button>
-          </div>
-        </div>
-        <!-- 时间选择器面板 -->
-        <div class="wechat-time-picker hidden" id="wechat-time-picker">
-          <div class="wechat-time-picker-header">
-            <span class="wechat-time-picker-title">发送时间</span>
-          </div>
-          <div class="wechat-time-picker-display" id="wechat-time-picker-display">2025-12-22 21:33:19</div>
-          <div class="wechat-time-picker-columns">
-            <div class="wechat-time-picker-column" data-type="year">
-              <div class="wechat-time-picker-items" id="wechat-time-picker-year"></div>
-            </div>
-            <div class="wechat-time-picker-column" data-type="month">
-              <div class="wechat-time-picker-items" id="wechat-time-picker-month"></div>
-            </div>
-            <div class="wechat-time-picker-column" data-type="day">
-              <div class="wechat-time-picker-items" id="wechat-time-picker-day"></div>
-            </div>
-            <div class="wechat-time-picker-column" data-type="hour">
-              <div class="wechat-time-picker-items" id="wechat-time-picker-hour"></div>
-            </div>
-            <div class="wechat-time-picker-column" data-type="minute">
-              <div class="wechat-time-picker-items" id="wechat-time-picker-minute"></div>
-            </div>
-            <div class="wechat-time-picker-column" data-type="second">
-              <div class="wechat-time-picker-items" id="wechat-time-picker-second"></div>
-            </div>
-          </div>
-          <div class="wechat-time-picker-footer">
-            <button class="wechat-time-picker-confirm" id="wechat-time-picker-confirm">完成</button>
           </div>
         </div>
         <!-- 表情面板 -->
@@ -342,6 +289,29 @@ export function generatePhoneHTML() {
       ${generateTransferPageHTML()}
       ${generateReceiveTransferPageHTML()}
       ${generateTransferRefundConfirmHTML()}
+
+      <!-- 图片裁剪弹窗（全局） -->
+      <div id="wechat-cropper-modal" class="wechat-modal hidden">
+        <div class="wechat-modal-content wechat-modal-cropper" style="position: relative; max-width: 350px; max-height: 90vh; overflow: hidden;">
+          <button class="wechat-modal-close-x" id="wechat-cropper-cancel">×</button>
+          <div class="wechat-modal-title">裁剪图片</div>
+          <div class="wechat-cropper-container" id="wechat-cropper-container">
+            <canvas id="wechat-cropper-canvas"></canvas>
+            <div class="wechat-cropper-overlay" id="wechat-cropper-overlay">
+              <div class="wechat-cropper-box" id="wechat-cropper-box">
+                <div class="wechat-cropper-handle nw"></div>
+                <div class="wechat-cropper-handle ne"></div>
+                <div class="wechat-cropper-handle sw"></div>
+                <div class="wechat-cropper-handle se"></div>
+              </div>
+            </div>
+          </div>
+          <div class="wechat-cropper-hint" style="font-size: 11px; color: var(--wechat-text-secondary); text-align: center; margin: 8px 0;">拖动选择区域，拖动角落调整大小</div>
+          <div class="wechat-modal-actions">
+            <button class="wechat-btn wechat-btn-primary" id="wechat-cropper-confirm">确认裁剪</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 隐藏的文件输入 -->

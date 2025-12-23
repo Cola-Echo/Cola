@@ -10,6 +10,7 @@ import { escapeHtml, sleep, formatMessageTime, calculateVoiceDuration, bindImage
 import { getUserAvatarHTML, refreshChatList, getUserPersonaFromST } from './ui.js';
 import { getSTChatContext, HAKIMI_HEADER } from './ai.js';
 import { playMusic as kugouPlayMusic } from './music.js';
+import { showMessageMenu } from './message-menu.js';
 
 // 当前群聊的索引
 export let currentGroupChatIndex = -1;
@@ -813,25 +814,29 @@ function renderGroupChatHistory(groupChat, members, chatHistory) {
 
 // 生成群聊静态语音气泡
 function generateGroupVoiceBubbleStatic(content, isSelf) {
-  const seconds = calculateVoiceDuration(content);
-  const width = Math.min(50 + seconds * 3, 180);
+  const safeContent = (content || '').toString();
+  const seconds = calculateVoiceDuration(safeContent);
+  const width = Math.min(60 + seconds * 4, 200);
   const voiceId = 'voice_' + Math.random().toString(36).substring(2, 9);
-  // 用户消息波形朝右，角色消息波形朝左
-  const wavesSvg = isSelf
-    ? `<svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 12h2v4H3zM7 8h2v8H7zm4 4h2v6h-2zm4-6h2v10h-2z" fill="currentColor"/></svg>`
-    : `<svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 12h2v4h-2zm-4-4h2v8h-2zm-4 4h2v6h-2zm-4-6h2v10H7z" fill="currentColor"/></svg>`;
 
-  // 用户消息：波形在左，秒数在右
-  // 角色消息：秒数在左，波形在右
+  // WiFi信号样式的三条弧线图标（与单聊保持一致）
+  const wavesSvg = `<svg class="wechat-voice-waves-icon" viewBox="0 0 24 24" width="18" height="18">
+      <circle class="wechat-voice-arc arc1" cx="5" cy="12" r="2" fill="currentColor"/>
+      <path class="wechat-voice-arc arc2" d="M10 8 A 5 5 0 0 1 10 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path class="wechat-voice-arc arc3" d="M15 4 A 10 10 0 0 1 15 20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>`;
+
+  // 用户消息：时长在左，波形在右
+  // 角色消息：波形在左，时长在右
   const bubbleInner = isSelf
-    ? `<span class="wechat-voice-waves">${wavesSvg}</span><span class="wechat-voice-duration">${seconds}</span>`
-    : `<span class="wechat-voice-duration">${seconds}</span><span class="wechat-voice-waves">${wavesSvg}</span>`;
+    ? `<span class="wechat-voice-duration">${seconds}"</span><span class="wechat-voice-waves">${wavesSvg}</span>`
+    : `<span class="wechat-voice-waves">${wavesSvg}</span><span class="wechat-voice-duration">${seconds}"</span>`;
 
   return `
-    <div class="wechat-voice-bubble ${isSelf ? 'self' : ''}" style="width: ${width}px" data-voice-id="${voiceId}">
+    <div class="wechat-voice-bubble ${isSelf ? 'self' : ''}" style="width: ${width}px" data-voice-id="${voiceId}" data-voice-content="${escapeHtml(safeContent)}">
       ${bubbleInner}
     </div>
-    <div class="wechat-voice-text hidden" id="${voiceId}">${escapeHtml(content)}</div>
+    <div class="wechat-voice-text hidden" id="${voiceId}">${escapeHtml(safeContent)}</div>
   `;
 }
 
@@ -866,17 +871,43 @@ function generateGroupMusicCardStatic(musicInfo) {
   `;
 }
 
-// 绑定群聊语音气泡点击事件
+// 绑定群聊语音气泡点击事件（播放动画 + 显示上方菜单，与单聊保持一致）
 function bindGroupVoiceBubbleEvents(container) {
   const voiceBubbles = container.querySelectorAll('.wechat-voice-bubble:not([data-bound])');
   voiceBubbles.forEach(bubble => {
     bubble.setAttribute('data-bound', 'true');
-    bubble.addEventListener('click', () => {
-      const voiceId = bubble.dataset.voiceId;
-      const textEl = document.getElementById(voiceId);
-      if (textEl) {
-        textEl.classList.toggle('hidden');
+
+    // 获取父消息元素
+    const messageEl = bubble.closest('.wechat-message');
+
+    // 计算消息索引
+    const allMessages = Array.from(container.querySelectorAll('.wechat-message'));
+    const msgIndex = allMessages.indexOf(messageEl);
+
+    // 点击事件：播放动画 + 显示上方菜单
+    bubble.addEventListener('click', (e) => {
+      e.stopPropagation();
+
+      // 切换播放状态
+      const isPlaying = bubble.classList.contains('playing');
+      if (isPlaying) {
+        bubble.classList.remove('playing');
+      } else {
+        // 停止其他正在播放的语音
+        document.querySelectorAll('.wechat-voice-bubble.playing').forEach(b => {
+          b.classList.remove('playing');
+        });
+        bubble.classList.add('playing');
+
+        // 模拟播放时间后停止
+        const duration = parseInt(bubble.querySelector('.wechat-voice-duration')?.textContent) || 3;
+        setTimeout(() => {
+          bubble.classList.remove('playing');
+        }, duration * 1000);
       }
+
+      // 显示上方菜单
+      showMessageMenu(bubble, msgIndex, e);
     });
   });
 }

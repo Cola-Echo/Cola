@@ -1634,8 +1634,8 @@ function init() {
 }
 
 if (typeof jQuery === 'function') {
-  jQuery(() => init());
+  jQuery(() => setTimeout(init, 500));
 } else {
-  document.addEventListener('DOMContentLoaded', init, { once: true });
+  document.addEventListener('DOMContentLoaded', () => setTimeout(init, 500), { once: true });
 }
 

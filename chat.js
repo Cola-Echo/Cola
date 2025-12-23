@@ -17,7 +17,6 @@ import { startVoiceCall } from './voice-call.js';
 import { startVideoCall } from './video-call.js';
 import { showOpenRedPacket, generateRedPacketId } from './red-packet.js';
 import { showReceiveTransferPage, generateTransferId } from './transfer.js';
-import { getSelectedTime, clearSelectedTime } from './chat-func-panel.js';
 
 // 当前聊天的联系人索引
 export let currentChatIndex = -1;
@@ -1393,6 +1392,7 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
 
   const now = new Date();
   const timeStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+  const msgTimestamp = Date.now();
 
   let messagesToSend = [];
   if (isMultipleMessages && Array.isArray(messageText)) {
@@ -1412,8 +1412,6 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
   window.updateSendButtonState?.();
   // 清除引用
   clearQuote();
-
-  const msgTimestamp = Date.now();
 
   for (let i = 0; i < messagesToSend.length; i++) {
     const msg = messagesToSend[i];
@@ -1452,15 +1450,6 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
     let combinedMessage = isVoice
       ? `[用户发送了语音消息，内容是：${messagesToSend.join('\n')}]`
       : messagesToSend.join('\n');
-
-    // 如果有选择的时间，添加时间上下文
-    const selectedTime = getSelectedTime();
-    if (selectedTime) {
-      const timeDate = new Date(selectedTime);
-      const timeStr = `${timeDate.getFullYear()}年${timeDate.getMonth() + 1}月${timeDate.getDate()}日 ${timeDate.getHours().toString().padStart(2, '0')}:${timeDate.getMinutes().toString().padStart(2, '0')}`;
-      combinedMessage = `[当前时间：${timeStr}]\n${combinedMessage}`;
-      clearSelectedTime();
-    }
 
     // 如果有引用，添加引用上下文
     if (quote) {
@@ -1981,15 +1970,6 @@ export async function sendStickerMessage(stickerUrl, description = '') {
       ? `[用户发送了一个表情包：${description}]`
       : '[用户发送了一个表情包]';
 
-    // 如果有选择的时间，添加时间上下文
-    const selectedTime = getSelectedTime();
-    if (selectedTime) {
-      const timeDate = new Date(selectedTime);
-      const timeStr = `${timeDate.getFullYear()}年${timeDate.getMonth() + 1}月${timeDate.getDate()}日 ${timeDate.getHours().toString().padStart(2, '0')}:${timeDate.getMinutes().toString().padStart(2, '0')}`;
-      aiPrompt = `[当前时间：${timeStr}]\n${aiPrompt}`;
-      clearSelectedTime();
-    }
-
     const aiResponse = await callAI(contact, aiPrompt);
 
     // 只有用户还在当前聊天时才隐藏打字指示器
@@ -2370,15 +2350,6 @@ export async function sendPhotoMessage(description) {
     // 调用 AI
     const { callAI } = await import('./ai.js');
     let aiPrompt = `[用户发送了一张照片，图片描述：${polishedDescription}]`;
-
-    // 如果有选择的时间，添加时间上下文
-    const selectedTime = getSelectedTime();
-    if (selectedTime) {
-      const timeDate = new Date(selectedTime);
-      const timeStr = `${timeDate.getFullYear()}年${timeDate.getMonth() + 1}月${timeDate.getDate()}日 ${timeDate.getHours().toString().padStart(2, '0')}:${timeDate.getMinutes().toString().padStart(2, '0')}`;
-      aiPrompt = `[当前时间：${timeStr}]\n${aiPrompt}`;
-      clearSelectedTime();
-    }
 
     const aiResponse = await callAI(contact, aiPrompt);
 
@@ -2860,15 +2831,6 @@ export async function sendBatchMessages(messages) {
   try {
     const { callAI } = await import('./ai.js');
     let combinedPrompt = promptParts.join('\n');
-
-    // 如果有选择的时间，添加时间上下文
-    const selectedTime = getSelectedTime();
-    if (selectedTime) {
-      const timeDate = new Date(selectedTime);
-      const timeStr = `${timeDate.getFullYear()}年${timeDate.getMonth() + 1}月${timeDate.getDate()}日 ${timeDate.getHours().toString().padStart(2, '0')}:${timeDate.getMinutes().toString().padStart(2, '0')}`;
-      combinedPrompt = `[当前时间：${timeStr}]\n${combinedPrompt}`;
-      clearSelectedTime();
-    }
 
     const aiResponse = await callAI(contact, combinedPrompt);
 
