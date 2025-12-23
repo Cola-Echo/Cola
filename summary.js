@@ -307,7 +307,7 @@ export function generateSummaryPrompt(allChats, cupNumber) {
   // 如果有自定义模板，使用自定义模板
   let prompt;
   if (settings.customSummaryTemplate && settings.customSummaryTemplate.trim()) {
-    prompt = settings.customSummaryTemplate.trim() + '\n\n【线上聊天记录】\n';
+    prompt = settings.customSummaryTemplate.trim() + '\n\n以下是线上聊天记录：\n\n【线上聊天记录】\n';
   } else {
     // 使用默认模板（纯对话记录模式）
     prompt = `你的任务是将这段【线上聊天记录】原样整理成JSON格式。
@@ -327,6 +327,8 @@ export function generateSummaryPrompt(allChats, cupNumber) {
 
 【JSON示例】
 {"keys":["公园","约会","周末"],"content":"{{user}}: 今天去哪玩？\\n{{char}}: 去公园吧\\n{{user}}: 好呀\\n{{char}}: 那我们下午2点见","comment":"${getCupName(cupNumber)}"}
+
+以下是线上聊天记录：
 
 【线上聊天记录】
 `;

@@ -655,6 +655,18 @@ function bindVideoCallEvents() {
     }
   });
 
+  // 移动端键盘收起后重置滚动位置
+  document.getElementById('wechat-video-call-input')?.addEventListener('blur', () => {
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+      const page = document.getElementById('wechat-video-call-page');
+      if (page) {
+        page.style.transform = '';
+        page.style.top = '0';
+      }
+    }, 100);
+  });
+
   // AI来电界面事件
   document.getElementById('wechat-video-call-incoming-accept')?.addEventListener('click', acceptIncomingCall);
   document.getElementById('wechat-video-call-incoming-decline')?.addEventListener('click', declineIncomingCall);
@@ -723,6 +735,21 @@ async function triggerAIVideoGreeting() {
       if (!reply) continue;
       if (/^\[(?:表情|照片|分享音乐|音乐)[：:]/.test(reply)) continue;
       reply = reply.replace(/\[.*?\]/g, '').trim();
+
+      // 过滤掉泄露的提示词或内部指令
+      reply = reply.replace(/^-\d+\s*.*/gm, '').trim();
+      if (/我需要.*(回复|做出|扮演|以.*身份)/.test(reply)) {
+        const dashMatch = reply.match(/---+\s*(.+)$/);
+        if (dashMatch) {
+          reply = dashMatch[1].trim();
+        } else {
+          continue;
+        }
+      }
+      if (reply.includes('---')) {
+        const parts2 = reply.split(/---+/);
+        reply = parts2[parts2.length - 1].trim();
+      }
 
       if (reply) {
         // 分离场景描述和说话内容
@@ -797,6 +824,21 @@ async function triggerCameraToggleReaction() {
       if (!reply) continue;
       if (/^\[(?:表情|照片|分享音乐|音乐)[：:]/.test(reply)) continue;
       reply = reply.replace(/\[.*?\]/g, '').trim();
+
+      // 过滤掉泄露的提示词或内部指令
+      reply = reply.replace(/^-\d+\s*.*/gm, '').trim();
+      if (/我需要.*(回复|做出|扮演|以.*身份)/.test(reply)) {
+        const dashMatch = reply.match(/---+\s*(.+)$/);
+        if (dashMatch) {
+          reply = dashMatch[1].trim();
+        } else {
+          continue;
+        }
+      }
+      if (reply.includes('---')) {
+        const parts2 = reply.split(/---+/);
+        reply = parts2[parts2.length - 1].trim();
+      }
 
       if (reply) {
         // 分离场景描述和说话内容
@@ -905,6 +947,21 @@ ${lastMessages}
       if (!reply) continue;
       if (/^\[(?:表情|照片|分享音乐|音乐)[：:]/.test(reply)) continue;
       reply = reply.replace(/\[.*?\]/g, '').trim();
+
+      // 过滤掉泄露的提示词或内部指令
+      reply = reply.replace(/^-\d+\s*.*/gm, '').trim();
+      if (/我需要.*(回复|做出|扮演|以.*身份)/.test(reply)) {
+        const dashMatch = reply.match(/---+\s*(.+)$/);
+        if (dashMatch) {
+          reply = dashMatch[1].trim();
+        } else {
+          continue;
+        }
+      }
+      if (reply.includes('---')) {
+        const parts2 = reply.split(/---+/);
+        reply = parts2[parts2.length - 1].trim();
+      }
 
       if (reply) {
         // 保存到聊天历史

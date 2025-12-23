@@ -116,11 +116,8 @@ export function appendBlockedNotice(contact) {
   exclamationDiv.className = 'wechat-blocked-exclamation';
   exclamationDiv.innerHTML = `<span class="wechat-blocked-exclamation-icon">!</span>`;
 
-  // 插入到消息内容前面
-  const contentDiv = lastUserMsg.querySelector('.wechat-message-content');
-  if (contentDiv) {
-    contentDiv.insertBefore(exclamationDiv, contentDiv.firstChild);
-  }
+  // 插入到 .wechat-message 的末尾（因为 self 是 row-reverse，末尾会显示在左边）
+  lastUserMsg.appendChild(exclamationDiv);
 
   // 添加点击事件
   exclamationDiv.addEventListener('click', () => {
@@ -389,16 +386,18 @@ function appendBlockedAIMessage(content, contact, quote = null) {
   const hasMeme = processedContent !== content;
   const bubbleContent = `<div class="wechat-message-bubble">${hasMeme ? processedContent : escapeHtml(content)}</div>`;
 
-  // 红色感叹号
+  // 红色感叹号（作为独立元素，不在 content 内部）
   const exclamationHtml = `
     <div class="wechat-blocked-ai-exclamation" title="对方在您拉黑期间发送">
       <span class="wechat-blocked-exclamation-icon">!</span>
     </div>
   `;
 
+  // 感叹号作为 .wechat-message 的直接子元素，在 content 后面（flex row 会让它显示在右边）
   messageDiv.innerHTML = `
     <div class="wechat-message-avatar">${avatarContent}</div>
-    <div class="wechat-message-content">${bubbleContent}${exclamationHtml}</div>
+    <div class="wechat-message-content">${bubbleContent}</div>
+    ${exclamationHtml}
   `;
 
   messagesContainer.appendChild(messageDiv);

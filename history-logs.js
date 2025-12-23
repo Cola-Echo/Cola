@@ -351,7 +351,7 @@ export function renderToyHistory(contact) {
           </div>
           <div class="wechat-toy-history-card-actions">
             <span class="wechat-toy-history-card-target">${targetText}</span>
-            <button class="wechat-history-delete-btn" data-tab="toy" data-index="${originalIndex}" title="删除">🗑️</button>
+            <button class="wechat-history-delete-btn" data-tab="toy" data-index="${originalIndex}" title="删除">×</button>
           </div>
         </div>
         <div class="wechat-toy-history-card-meta">

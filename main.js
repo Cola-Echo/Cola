@@ -167,10 +167,10 @@ function renderHistoryContent(contact, tabType) {
     html += `<div class="wechat-history-card-header">`;
     html += `<span class="wechat-history-card-time">${escapeHtml(time)}</span>`;
     html += `<div class="wechat-history-card-actions">`;
+    html += `<button class="wechat-history-delete-btn" data-tab="${tabType}" data-index="${originalIndex}" title="删除">×</button>`;
     if (duration) {
       html += `<span class="wechat-history-card-duration">${escapeHtml(duration)}</span>`;
     }
-    html += `<button class="wechat-history-delete-btn" data-tab="${tabType}" data-index="${originalIndex}" title="删除">🗑️</button>`;
     html += `</div>`;
     html += `</div>`;
 

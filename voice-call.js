@@ -632,6 +632,20 @@ function bindCallEvents() {
       sendCallMessage();
     }
   });
+
+  // 移动端键盘收起后重置滚动位置
+  document.getElementById('wechat-voice-call-input')?.addEventListener('blur', () => {
+    // 延迟执行以等待键盘完全收起
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+      // 重置可能被移动的元素
+      const page = document.getElementById('wechat-voice-call-page');
+      if (page) {
+        page.style.transform = '';
+        page.style.top = '0';
+      }
+    }, 100);
+  });
 }
 
 // 接听来电
@@ -803,7 +817,7 @@ ${lastMessages}
       hideTypingIndicator();
     }
 
-    // 按 ||| 分割，并将特殊标签与文本分离，避免“文字+表情包”混在同一条
+    // 按 ||| 分割，并将特殊标签与文本分离，避免"文字+表情包"混在同一条
     const parts = splitAIMessages(aiResponse);
 
     for (const part of parts) {
@@ -814,6 +828,25 @@ ${lastMessages}
       if (/^\[(?:表情|照片|分享音乐|音乐)[：:]/.test(reply)) continue;
       // 移除可能的特殊标记
       reply = reply.replace(/\[.*?\]/g, '').trim();
+
+      // 过滤掉泄露的提示词或内部指令
+      // 1. 以负数开头的行（如 -5000）
+      reply = reply.replace(/^-\d+\s*.*/gm, '').trim();
+      // 2. 包含"我需要"+"回复/做出/扮演"等指令性内容
+      if (/我需要.*(回复|做出|扮演|以.*身份)/.test(reply)) {
+        // 尝试提取 --- 后面的实际内容
+        const dashMatch = reply.match(/---+\s*(.+)$/);
+        if (dashMatch) {
+          reply = dashMatch[1].trim();
+        } else {
+          continue; // 跳过这条消息
+        }
+      }
+      // 3. 移除 --- 分隔符前面的内容（如果有的话）
+      if (reply.includes('---')) {
+        const parts2 = reply.split(/---+/);
+        reply = parts2[parts2.length - 1].trim();
+      }
 
       if (reply) {
         // 保存到聊天历史
