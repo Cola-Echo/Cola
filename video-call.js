@@ -17,13 +17,16 @@ let videoCallState = {
   timerInterval: null,
   dotsInterval: null,
   connectTimeout: null,
+  aiHangupTimeout: null, // AI主动挂断计时器
   contactIndex: -1,
   contactName: '',
   contactAvatar: '',
   messages: [],
   contact: null,
   initiator: 'user',
-  rejectedByUser: false
+  rejectedByUser: false,
+  rejectedByAI: false, // 是否被AI主动拒绝
+  hungUpByAI: false // 是否被AI主动挂断
 };
 
 // 辅助函数：安全设置头像（避免 onerror 内联处理器问题）
@@ -67,6 +70,8 @@ export function startVideoCall(initiator = 'user', contactIndex = currentChatInd
   videoCallState.messages = [];
   videoCallState.initiator = initiator;
   videoCallState.rejectedByUser = false;
+  videoCallState.rejectedByAI = false;
+  videoCallState.hungUpByAI = false;
 
   if (initiator === 'ai') {
     showIncomingCallPage();
@@ -174,7 +179,7 @@ function showCallPage() {
 }
 
 // 开始连接动画
-function startConnecting() {
+async function startConnecting() {
   const statusEl = document.getElementById('wechat-video-call-status');
   if (!statusEl) return;
 
@@ -188,13 +193,63 @@ function startConnecting() {
     statusEl.textContent = '等待对方接受邀请' + dots;
   }, 500);
 
-  // 用户发起：2-4秒后自动接通
-  const connectDelay = 2000 + Math.random() * 2000;
-  videoCallState.connectTimeout = setTimeout(() => {
+  // 用户发起：调用AI决策是否接听
+  const shouldAnswer = await askAIToAnswerVideoCall(videoCallState.contact);
+
+  if (!videoCallState.isActive) return; // 用户可能已经取消
+
+  if (shouldAnswer) {
+    // AI决定接听
     if (videoCallState.isActive && !videoCallState.isConnected) {
       onVideoCallConnected();
     }
-  }, connectDelay);
+  } else {
+    // AI决定拒接
+    videoCallState.rejectedByAI = true;
+    hangupVideoCall();
+  }
+}
+
+// AI决定是否接听用户的视频来电
+async function askAIToAnswerVideoCall(contact) {
+  if (!contact) return true;
+
+  try {
+    const { callAI } = await import('./ai.js');
+
+    const prompt = `[用户正在给你打视频电话，你需要决定是否接听]
+
+根据你的性格和当前心情决定：
+- 如果你想接听，只回复：[接听]
+- 如果你不想接听（比如在忙、生气、故意不接、想让用户着急等），只回复：[拒接]
+
+【绝对禁止】
+- 只能回复 [接听] 或 [拒接]，不能有任何其他文字！
+- [接听] 或 [拒接] 必须独立成行，前后不能有任何内容！
+× 错误：好吧[接听] ← 有其他文字，错误！
+× 错误：[拒接]哼 ← 有其他文字，错误！
+√ 正确：[接听]
+√ 正确：[拒接]
+
+注意：大多数情况下你应该接听，只有特殊情况才拒接。`;
+
+    const response = await callAI(contact, prompt);
+    const trimmed = (response || '').trim();
+
+    console.log('[可乐] AI视频接听决策:', trimmed);
+
+    // 检查是否拒接
+    if (trimmed.includes('[拒接]') || trimmed.includes('拒接')) {
+      return false;
+    }
+
+    // 默认接听
+    return true;
+  } catch (err) {
+    console.error('[可乐] AI视频接听决策失败:', err);
+    // 出错时默认接听
+    return true;
+  }
 }
 
 // 通话接通
@@ -225,6 +280,9 @@ function onVideoCallConnected() {
   if (videoCallState.initiator === 'ai') {
     triggerAIVideoGreeting();
   }
+
+  // 启动AI主动挂断检查（通话30秒后开始随机检查）
+  scheduleVideoAIHangupCheck();
 }
 
 // 开始通话计时
@@ -245,8 +303,68 @@ function startVideoCallTimer() {
   }, 1000);
 }
 
+// 调度AI主动挂断检查
+// 通话接通后30秒开始，每次用户发消息后AI回复时有5%概率挂断
+// 同时设置一个180秒（3分钟）的保底挂断时间
+function scheduleVideoAIHangupCheck() {
+  // 清除已有的计时器
+  clearTimeout(videoCallState.aiHangupTimeout);
+
+  // 设置保底挂断时间：通话3分钟后有50%概率挂断，超过5分钟必定挂断
+  const checkTime = 180000 + Math.random() * 120000; // 3-5分钟
+  videoCallState.aiHangupTimeout = setTimeout(() => {
+    if (videoCallState.isConnected) {
+      // 50%概率挂断，否则再等1-2分钟
+      if (Math.random() < 0.5) {
+        videoAIHangup();
+      } else {
+        // 再设置一个60-120秒后的必定挂断
+        videoCallState.aiHangupTimeout = setTimeout(() => {
+          if (videoCallState.isConnected) {
+            videoAIHangup();
+          }
+        }, 60000 + Math.random() * 60000);
+      }
+    }
+  }, checkTime);
+}
+
+// 每次AI回复后检查是否要挂断（5%概率，通话30秒后生效）
+export function checkVideoAIHangupAfterReply() {
+  if (!videoCallState.isConnected || !videoCallState.startTime) return false;
+
+  // 通话至少30秒后才开始随机挂断检查
+  const elapsed = Date.now() - videoCallState.startTime;
+  if (elapsed < 30000) return false;
+
+  // 5%概率挂断
+  if (Math.random() < 0.05) {
+    // 延迟1-3秒后挂断，更自然
+    setTimeout(() => {
+      if (videoCallState.isConnected) {
+        videoAIHangup();
+      }
+    }, 1000 + Math.random() * 2000);
+    return true;
+  }
+
+  return false;
+}
+
+// AI主动挂断视频电话
+function videoAIHangup() {
+  if (!videoCallState.isConnected) return;
+
+  console.log('[可乐] AI主动挂断视频电话');
+  videoCallState.hungUpByAI = true;
+  hangupVideoCall();
+}
+
 // 挂断视频通话
 export function hangupVideoCall() {
+  // 清除AI挂断计时器
+  clearTimeout(videoCallState.aiHangupTimeout);
+
   // 计算通话时长
   let durationStr = '00:00';
   if (videoCallState.isConnected && videoCallState.startTime) {
@@ -276,8 +394,15 @@ export function hangupVideoCall() {
       lastMessage = `视频通话 ${durationStr}`;
     } else {
       if (videoCallState.initiator === 'user') {
-        callContent = '[视频通话:已取消]';
-        lastMessage = '已取消';
+        if (videoCallState.rejectedByAI) {
+          // 用户发起，AI拒接
+          callContent = '[视频通话:对方已拒绝]';
+          lastMessage = '对方已拒绝';
+        } else {
+          // 用户发起，用户取消
+          callContent = '[视频通话:已取消]';
+          lastMessage = '已取消';
+        }
       } else if (videoCallState.rejectedByUser) {
         callContent = '[视频通话:已拒绝]';
         lastMessage = '已拒绝';
@@ -297,12 +422,12 @@ export function hangupVideoCall() {
 
     contact.chatHistory.push(callRecord);
 
-    // 通话内容只进“通话历史”，不在主聊天界面展示（避免污染主界面/列表预览）
+    // 通话内容只进"通话历史"，不在主聊天界面展示（避免污染主界面/列表预览）
     if (videoCallState.messages && videoCallState.messages.length > 0) {
       const callStatusForHistory = videoCallState.isConnected
         ? 'connected'
         : (videoCallState.initiator === 'user'
-          ? 'cancelled'
+          ? (videoCallState.rejectedByAI ? 'rejectedByAI' : 'cancelled')
           : (videoCallState.rejectedByUser ? 'rejected' : 'timeout'));
       contact.callHistory = Array.isArray(contact.callHistory) ? contact.callHistory : [];
       contact.callHistory.push({
@@ -322,7 +447,7 @@ export function hangupVideoCall() {
     let callStatus = 'connected';
     if (!videoCallState.isConnected) {
       if (videoCallState.initiator === 'user') {
-        callStatus = 'cancelled';
+        callStatus = videoCallState.rejectedByAI ? 'rejectedByAI' : 'cancelled';
       } else if (videoCallState.rejectedByUser) {
         callStatus = 'rejected';
       } else {
@@ -335,7 +460,7 @@ export function hangupVideoCall() {
     }
 
     // AI 对通话结束做出反应（所有情况都触发）
-    triggerVideoCallEndReaction(contact, callStatus, videoCallState.initiator, videoCallState.messages);
+    triggerVideoCallEndReaction(contact, callStatus, videoCallState.initiator, videoCallState.messages, videoCallState.hungUpByAI);
 
     requestSave();
     refreshChatList();
@@ -398,6 +523,14 @@ function appendVideoCallRecordMessage(role, status, duration, contact) {
       <div class="wechat-call-record wechat-video-call-record">
         <span class="wechat-call-record-text">已取消</span>
         ${cameraIconSVG}
+      </div>
+    `;
+  } else if (status === 'rejectedByAI') {
+    // 用户发起，AI拒接：对方已拒绝（绿色，和视频通话时长样式一致）
+    callRecordHTML = `
+      <div class="wechat-call-record wechat-video-call-record">
+        ${cameraIconSVG}
+        <span class="wechat-call-record-text">对方已拒绝</span>
       </div>
     `;
   } else if (status === 'rejected') {
@@ -698,12 +831,15 @@ async function triggerCameraToggleReaction() {
 }
 
 // AI 对视频通话结束做出反应
-async function triggerVideoCallEndReaction(contact, callStatus, initiator, callMessages = []) {
+async function triggerVideoCallEndReaction(contact, callStatus, initiator, callMessages = [], hungUpByAI = false) {
   if (!contact) return;
 
   let reactionPrompt;
   if (callStatus === 'cancelled') {
     reactionPrompt = '[用户刚才给你打了视频通话，但还没等你接就取消了。请对此做出自然的反应，可以表示疑惑或好奇。回复1-2句话即可，简短自然。]';
+  } else if (callStatus === 'rejectedByAI') {
+    // AI主动拒绝了用户的视频来电
+    reactionPrompt = '[你刚才拒绝了用户的视频通话。请对此做出自然的反应，解释为什么不接（比如在忙、不方便、想让对方着急一下、生气中等）。回复1-2句话即可，简短自然，符合你的性格。]';
   } else if (callStatus === 'rejected') {
     reactionPrompt = '[你刚才给用户打视频通话，但用户直接挂断拒接了。请对此做出自然的反应，可以表示失落或委屈。回复1-2句话即可，简短自然。]';
   } else if (callStatus === 'timeout') {
@@ -712,15 +848,33 @@ async function triggerVideoCallEndReaction(contact, callStatus, initiator, callM
     // 已接通的视频通话正常结束
     if (callMessages && callMessages.length > 0) {
       const lastMessages = callMessages.slice(-5).map(m => `${m.role === 'user' ? '用户' : '你'}: ${m.content}`).join('\n');
-      reactionPrompt = `[视频通话刚刚挂断了，现在回到微信文字聊天。通话最后几句是：
+
+      if (hungUpByAI) {
+        // AI主动挂断的情况
+        reactionPrompt = `[视频通话刚刚挂断了（是你主动挂的），现在回到微信文字聊天。通话最后几句是：
+${lastMessages}
+
+【重要】是你主动挂断的视频通话，你现在是发微信消息。请根据通话内容自然收尾：
+- 可能是聊完了正常告别
+- 可能是有事要忙、来不及了
+- 可能是情绪原因（害羞、生气、不想聊了等）
+回复1句话，符合你的人设性格。]`;
+      } else {
+        // 用户挂断的情况
+        reactionPrompt = `[视频通话刚刚挂断了，现在回到微信文字聊天。通话最后几句是：
 ${lastMessages}
 
 【重要】通话已结束，你现在是发微信消息，不是继续视频通话。你应该对"挂断"这件事本身做反应：
 - 如果是正常告别后挂的：简单告别或表达心情
 - 如果是突然/意外挂断（聊到一半、正在做某事时断了）：表示疑惑，问问怎么回事
 绝对不要继续或延续通话里正在进行的内容或动作。回复1句话，符合你的性格。]`;
+      }
     } else {
-      reactionPrompt = '[视频通话刚刚挂断了，现在回到微信文字聊天。请对"挂断"做出简单反应，不要假设通话中发生了什么。回复1句话，符合你的性格。]';
+      if (hungUpByAI) {
+        reactionPrompt = '[视频通话刚刚挂断了（是你主动挂的），现在回到微信文字聊天。请对此做出简单反应，符合你的人设性格。回复1句话。]';
+      } else {
+        reactionPrompt = '[视频通话刚刚挂断了，现在回到微信文字聊天。请对"挂断"做出简单反应，不要假设通话中发生了什么。回复1句话，符合你的性格。]';
+      }
     }
   } else {
     return;
@@ -841,6 +995,9 @@ async function sendVideoCallMessage() {
         }
       }
     }
+
+    // AI回复完成后，检查是否要主动挂断（5%概率，通话30秒后生效）
+    checkVideoAIHangupAfterReply();
   } catch (err) {
     hideVideoCallTypingIndicator();
     console.error('[可乐] 视频通话消息AI回复失败:', err);

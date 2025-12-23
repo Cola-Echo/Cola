@@ -11,6 +11,7 @@ import { startVideoCall } from './video-call.js';
 import { showMusicPanel, initMusicEvents } from './music.js';
 import { showRedPacketPage } from './red-packet.js';
 import { showTransferPage } from './transfer.js';
+import { showGiftPage } from './gift.js';
 import { getSettings, splitAIMessages } from './config.js';
 import { refreshChatList } from './ui.js';
 import { requestSave } from './save-manager.js';
@@ -676,6 +677,14 @@ function handleFuncItemClick(func) {
       } else {
         showTransferPage();
       }
+      return;
+    case 'gift':
+      hideFuncPanel();
+      if (isInGroupChat()) {
+        showToast('群聊暂不支持送礼物', 'info');
+        return;
+      }
+      showGiftPage();
       return;
     case 'listen':
       hideFuncPanel();

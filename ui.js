@@ -203,13 +203,18 @@ function generateContactChatItem(contact) {
     ? `<span class="wechat-chat-item-badge">${unreadCount > 99 ? '99+' : unreadCount}</span>`
     : '';
 
+  // 拉黑标识
+  const blockedBadge = contact.isBlocked === true
+    ? '<span class="wechat-blocked-badge">🚫</span>'
+    : '';
+
   return `
-    <div class="wechat-chat-item" data-contact-id="${contact.id}" data-index="${contact.originalIndex}">
+    <div class="wechat-chat-item${contact.isBlocked ? ' wechat-chat-item-blocked' : ''}" data-contact-id="${contact.id}" data-index="${contact.originalIndex}">
       <div class="wechat-chat-item-avatar">
         ${avatarContent}
       </div>
       <div class="wechat-chat-item-info">
-        <div class="wechat-chat-item-name">${contact.name || '未知'}</div>
+        <div class="wechat-chat-item-name">${contact.name || '未知'}${blockedBadge}</div>
         <div class="wechat-chat-item-preview">${escapeHtml(preview)}</div>
       </div>
       <div class="wechat-chat-item-meta">

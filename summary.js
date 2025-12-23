@@ -168,7 +168,10 @@ export function collectAllChatHistory(selectedFilter = null) {
           role: msg.role,
           content: msg.content,
           time: msg.time || '',
-          isVoice: msg.isVoice || false
+          isVoice: msg.isVoice || false,
+          isSticker: msg.isSticker || false,
+          isPhoto: msg.isPhoto || false,
+          musicInfo: msg.musicInfo || null
         }))
       });
     }
@@ -215,7 +218,10 @@ export function collectAllChatHistory(selectedFilter = null) {
           content: msg.content,
           characterName: msg.characterName || '',
           time: msg.time || '',
-          isVoice: msg.isVoice || false
+          isVoice: msg.isVoice || false,
+          isSticker: msg.isSticker || false,
+          isPhoto: msg.isPhoto || false,
+          musicInfo: msg.musicInfo || null
         }))
       });
     }
@@ -303,31 +309,24 @@ export function generateSummaryPrompt(allChats, cupNumber) {
   if (settings.customSummaryTemplate && settings.customSummaryTemplate.trim()) {
     prompt = settings.customSummaryTemplate.trim() + '\n\n【线上聊天记录】\n';
   } else {
-    // 使用默认模板
-    prompt = `你是一位客观、精准的结构化事件记录员。你的任务是像历史学家记录史实一样，从这段【线上聊天记录】中提取并记录关键信息。
+    // 使用默认模板（纯对话记录模式）
+    prompt = `你的任务是将这段【线上聊天记录】原样整理成JSON格式。
 
 【核心原则】
-- 客观准确：只记录实际发生的事件，不添加主观推测或情感评价
-- 结构清晰：按时间顺序提取关键节点
-- 忠于原文：尽量保留原始表述，避免过度概括
-- 重点突出：只记录推动事件发展的关键信息
-
-【记录要点】
-- 关系状态的实际变化（约定、承诺、矛盾、和解等具体事件）
-- 重要的对话内容和决定
-- 人物之间的互动行为
-- 情感表达的关键时刻
+- 原样保留：完整复制每一条对话，不做任何修改、润色或总结
+- 格式统一：按"发言者: 内容"格式逐行记录
+- 仅提取关键词：从对话中提取3-5个核心关键词用于检索触发
 
 【输出格式要求】
 - 只输出一个JSON对象
 - 不要使用markdown代码块
 - 直接以 { 开头，以 } 结尾
-- keys: 3-5个能代表本次聊天核心内容的关键词
-- content: 按"序号: 事件记录"格式列出关键节点（每条一行）
+- keys: 3-5个能代表本次聊天核心内容的关键词（人名、地点、事件等）
+- content: 原样复制的对话记录，每条一行，格式为"发言者: 内容"
 - comment: "${getCupName(cupNumber)}"
 
 【JSON示例】
-{"keys":["约会","告白","接受"],"content":"1: {{user}}邀请{{char}}周末见面\\n2: {{char}}表示期待并确认时间\\n3: {{user}}表达好感，{{char}}积极回应","comment":"${getCupName(cupNumber)}"}
+{"keys":["公园","约会","周末"],"content":"{{user}}: 今天去哪玩？\\n{{char}}: 去公园吧\\n{{user}}: 好呀\\n{{char}}: 那我们下午2点见","comment":"${getCupName(cupNumber)}"}
 
 【线上聊天记录】
 `;
@@ -347,11 +346,32 @@ export function generateSummaryPrompt(allChats, cupNumber) {
         speaker = match ? match[1] : '{{char}}';
       }
       const timeStr = msg.time ? `[${msg.time}] ` : '';
-      prompt += `${timeStr}${speaker}: ${msg.content}\n`;
+
+      // 根据消息类型生成不同的内容描述
+      let messageContent;
+      if (msg.musicInfo) {
+        // 音乐分享
+        const musicName = msg.musicInfo.name || '未知歌曲';
+        const musicArtist = msg.musicInfo.artist || '未知歌手';
+        messageContent = `[分享歌曲] ${musicName} - ${musicArtist}`;
+      } else if (msg.isVoice) {
+        // 语音消息
+        messageContent = `[语音] ${msg.content}`;
+      } else if (msg.isSticker) {
+        // 表情包
+        messageContent = '[发送了一个表情包]';
+      } else if (msg.isPhoto) {
+        // 图片
+        messageContent = '[发送了一张图片]';
+      } else {
+        messageContent = msg.content;
+      }
+
+      prompt += `${timeStr}${speaker}: ${messageContent}\n`;
     });
   });
 
-  prompt += `\n请从以上线上聊天记录中提取关键事件节点，输出${getCupName(cupNumber)}的JSON：`;
+  prompt += `\n请将以上聊天记录原样整理成${getCupName(cupNumber)}的JSON：`;
 
   return prompt;
 }

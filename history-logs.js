@@ -311,3 +311,65 @@ export function initErrorCapture() {
   // 不再全局捕获 console.error，避免记录酒馆其他错误
   console.log('[可乐不加冰] 错误日志系统已初始化');
 }
+
+// 渲染心动瞬间历史记录
+export function renderToyHistory(contact) {
+  const contentEl = document.getElementById('wechat-history-content');
+  if (!contentEl) return;
+
+  const toyHistory = contact?.toyHistory || [];
+
+  if (toyHistory.length === 0) {
+    contentEl.innerHTML = `
+      <div class="wechat-history-empty">
+        <div class="wechat-history-empty-icon">
+          <svg viewBox="0 0 24 24" width="48" height="48" style="color: #ff6b8a; opacity: 0.5;">
+            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          </svg>
+        </div>
+        <div>暂无心动瞬间记录</div>
+      </div>
+    `;
+    return;
+  }
+
+  // 按时间倒序排列
+  const sortedHistory = [...toyHistory].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  contentEl.innerHTML = sortedHistory.map((session, sortedIdx) => {
+    const targetText = session.target === 'character' ? 'TA在用' : '你在用';
+    const messages = session.messages || [];
+    const previewMessages = messages.slice(0, 5); // 只显示前5条消息预览
+    const originalIndex = toyHistory.indexOf(session);
+
+    return `
+      <div class="wechat-toy-history-card" data-index="${originalIndex}">
+        <div class="wechat-toy-history-card-header">
+          <div class="wechat-toy-history-card-gift">
+            <span class="wechat-toy-history-card-gift-emoji">${escapeHtml(session.gift?.emoji || '')}</span>
+            <span class="wechat-toy-history-card-gift-name">${escapeHtml(session.gift?.name || '未知玩具')}</span>
+          </div>
+          <div class="wechat-toy-history-card-actions">
+            <span class="wechat-toy-history-card-target">${targetText}</span>
+            <button class="wechat-history-delete-btn" data-tab="toy" data-index="${originalIndex}" title="删除">🗑️</button>
+          </div>
+        </div>
+        <div class="wechat-toy-history-card-meta">
+          <span>${escapeHtml(session.time || '未知时间')}</span>
+          <span>时长 ${escapeHtml(session.duration || '00:00')}</span>
+        </div>
+        <div class="wechat-toy-history-card-messages">
+          ${previewMessages.length === 0 ? '<div style="color: #999; text-align: center;">暂无对话记录</div>' :
+            previewMessages.map(msg => `
+              <div class="wechat-toy-history-msg">
+                <span class="wechat-toy-history-msg-sender ${msg.role === 'user' ? 'user' : 'ai'}">${msg.role === 'user' ? '你' : 'TA'}:</span>
+                <span class="wechat-toy-history-msg-content">${escapeHtml((msg.content || '').substring(0, 50))}${(msg.content?.length || 0) > 50 ? '...' : ''}</span>
+              </div>
+            `).join('')
+          }
+          ${messages.length > 5 ? `<div style="color: #ff6b8a; font-size: 12px; text-align: center; margin-top: 8px;">还有 ${messages.length - 5} 条消息...</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}

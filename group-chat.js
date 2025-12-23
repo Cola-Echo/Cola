@@ -11,6 +11,7 @@ import { getUserAvatarHTML, refreshChatList, getUserPersonaFromST } from './ui.j
 import { getSTChatContext, HAKIMI_HEADER } from './ai.js';
 import { playMusic as kugouPlayMusic } from './music.js';
 import { showMessageMenu } from './message-menu.js';
+import { showGroupRedPacketDetail } from './group-red-packet.js';
 
 // 当前群聊的索引
 export let currentGroupChatIndex = -1;
@@ -618,6 +619,7 @@ export function openGroupChat(groupIndex) {
     messagesContainer.innerHTML = '';
   } else {
     messagesContainer.innerHTML = renderGroupChatHistory(groupChat, members, chatHistory);
+    bindGroupRedPacketBubbleEvents(messagesContainer);
     bindGroupVoiceBubbleEvents(messagesContainer);
     bindGroupPhotoBubbleEvents(messagesContainer);
     bindGroupMusicCardEvents(messagesContainer);
@@ -871,6 +873,29 @@ function generateGroupMusicCardStatic(musicInfo) {
   `;
 }
 
+// 绑定群红包气泡点击事件
+function bindGroupRedPacketBubbleEvents(container) {
+  const rpBubbles = container.querySelectorAll('.wechat-group-red-packet-bubble:not([data-bound])');
+  const settings = getSettings();
+  const groupIndex = currentGroupChatIndex;
+  const groupChat = settings.groupChats?.[groupIndex];
+
+  if (!groupChat) return;
+
+  rpBubbles.forEach(bubble => {
+    bubble.setAttribute('data-bound', 'true');
+    const rpId = bubble.dataset.rpId;
+
+    bubble.addEventListener('click', () => {
+      // 从聊天记录中找到红包信息
+      const rpMsg = groupChat.chatHistory?.find(m => m.groupRedPacketInfo?.id === rpId);
+      if (rpMsg && rpMsg.groupRedPacketInfo) {
+        showGroupRedPacketDetail(rpMsg.groupRedPacketInfo);
+      }
+    });
+  });
+}
+
 // 绑定群聊语音气泡点击事件（播放动画 + 显示上方菜单，与单聊保持一致）
 function bindGroupVoiceBubbleEvents(container) {
   const voiceBubbles = container.querySelectorAll('.wechat-voice-bubble:not([data-bound])');
@@ -959,17 +984,7 @@ export function appendGroupMessage(role, content, characterName, characterId, is
     if (isSticker) {
       bubbleContent = `<div class="wechat-sticker-bubble"><img src="${content}" alt="表情" class="wechat-sticker-img"></div>`;
     } else if (isVoice) {
-      const seconds = calculateVoiceDuration(content);
-      const width = Math.min(50 + seconds * 3, 180);
-      const voiceId = 'voice_' + Math.random().toString(36).substring(2, 9);
-      // 用户消息：波形在左，秒数在右
-      bubbleContent = `
-        <div class="wechat-voice-bubble self" style="width: ${width}px" data-voice-id="${voiceId}">
-          <span class="wechat-voice-waves"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 12h2v4H3zM7 8h2v8H7zm4 4h2v6h-2zm4-6h2v10h-2z" fill="currentColor"/></svg></span>
-          <span class="wechat-voice-duration">${seconds}</span>
-        </div>
-        <div class="wechat-voice-text hidden" id="${voiceId}">${escapeHtml(content)}</div>
-      `;
+      bubbleContent = generateGroupVoiceBubbleStatic(content, true);
     } else {
       const processedContent = parseMemeTag(content);
       const hasMeme = processedContent !== content;
@@ -1003,17 +1018,7 @@ export function appendGroupMessage(role, content, characterName, characterId, is
     if (isSticker) {
       bubbleContent = `<div class="wechat-sticker-bubble"><img src="${content}" alt="表情" class="wechat-sticker-img"></div>`;
     } else if (isVoice) {
-      const seconds = calculateVoiceDuration(content);
-      const width = Math.min(50 + seconds * 3, 180);
-      const voiceId = 'voice_' + Math.random().toString(36).substring(2, 9);
-      // 角色消息：秒数在左，波形在右
-      bubbleContent = `
-        <div class="wechat-voice-bubble" style="width: ${width}px" data-voice-id="${voiceId}">
-          <span class="wechat-voice-duration">${seconds}</span>
-          <span class="wechat-voice-waves"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 12h2v4h-2zm-4-4h2v8h-2zm-4 4h2v6h-2zm-4-6h2v10H7z" fill="currentColor"/></svg></span>
-        </div>
-        <div class="wechat-voice-text hidden" id="${voiceId}">${escapeHtml(content)}</div>
-      `;
+      bubbleContent = generateGroupVoiceBubbleStatic(content, false);
     } else {
       const processedContent = parseMemeTag(content);
       const hasMeme = processedContent !== content;

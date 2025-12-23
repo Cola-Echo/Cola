@@ -171,6 +171,10 @@ export function generatePhoneHTML() {
             <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8" cy="10" r="1.5" fill="currentColor"/><circle cx="12" cy="7" r="1.5" fill="currentColor"/><circle cx="16" cy="10" r="1.5" fill="currentColor"/><circle cx="8" cy="14" r="1.5" fill="currentColor"/><circle cx="16" cy="14" r="1.5" fill="currentColor"/><circle cx="12" cy="17" r="1.5" fill="currentColor"/></svg>
             <span>TA的朋友圈</span>
           </div>
+          <div class="wechat-dropdown-item" id="wechat-menu-history">
+            <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            <span>历史记录</span>
+          </div>
           <div class="wechat-dropdown-item wechat-dropdown-item-danger" id="wechat-menu-clear-moments">
             <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             <span>清空朋友圈</span>
@@ -178,6 +182,10 @@ export function generatePhoneHTML() {
           <div class="wechat-dropdown-item wechat-dropdown-item-danger" id="wechat-menu-clear-chat">
             <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
             <span>清空聊天</span>
+          </div>
+          <div class="wechat-dropdown-item wechat-dropdown-item-danger" id="wechat-menu-block">
+            <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4.93 4.93l14.14 14.14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span id="wechat-menu-block-text">拉黑</span>
           </div>
         </div>
         <!-- 撤回消息区面板 -->
@@ -283,7 +291,9 @@ export function generatePhoneHTML() {
       ${generateMusicPanelHTML()}
       ${generateListenTogetherHTML()}
       ${generateMomentsPageHTML()}
+      ${generateHistoryPageHTML()}
       ${generateRedPacketPageHTML(settings)}
+      ${generateGiftPageHTML()}
       ${generateOpenRedPacketHTML()}
       ${generateRedPacketDetailHTML(settings)}
       ${generateTransferPageHTML()}
@@ -873,11 +883,17 @@ function generateModalsHTML(settings) {
             </div>
             <div>
               <span class="wechat-settings-label" style="font-size: 12px; margin-bottom: 4px; display: block;">模型</span>
-              <div style="display: flex; gap: 8px;">
-                <input type="text" class="wechat-settings-input" id="wechat-contact-model" placeholder="模型名称" list="wechat-contact-model-list" style="flex: 1; box-sizing: border-box;">
+              <div style="display: flex; gap: 8px;" id="wechat-contact-model-select-wrapper">
+                <select class="wechat-settings-input" id="wechat-contact-model-select" style="flex: 1; box-sizing: border-box;">
+                  <option value="">---请选择模型---</option>
+                </select>
+                <button class="wechat-btn wechat-btn-small" id="wechat-contact-model-manual" style="white-space: nowrap;">手动</button>
                 <button class="wechat-btn wechat-btn-small wechat-btn-primary" id="wechat-contact-fetch-model" style="white-space: nowrap;">获取</button>
               </div>
-              <datalist id="wechat-contact-model-list"></datalist>
+              <div style="display: none; gap: 8px;" id="wechat-contact-model-input-wrapper">
+                <input type="text" class="wechat-settings-input" id="wechat-contact-model-input" placeholder="手动输入模型名称" style="flex: 1; box-sizing: border-box;">
+                <button class="wechat-btn wechat-btn-small" id="wechat-contact-model-back" style="white-space: nowrap;">返回</button>
+              </div>
             </div>
             <div style="display: flex; gap: 8px; margin-top: 4px;">
               <button class="wechat-btn wechat-btn-small" id="wechat-contact-test-api" style="flex: 1;">测试连接</button>
@@ -1268,6 +1284,80 @@ function generateOpenRedPacketHTML() {
   `;
 }
 
+// 礼物页面 HTML
+function generateGiftPageHTML() {
+  return `
+    <!-- 礼物页面 -->
+    <div id="wechat-gift-page" class="wechat-gift-page hidden">
+      <div class="wechat-navbar wechat-gift-navbar">
+        <button class="wechat-navbar-btn wechat-navbar-back" id="wechat-gift-back">‹</button>
+        <span class="wechat-navbar-title">送礼物</span>
+        <span></span>
+      </div>
+      <div class="wechat-gift-content">
+        <!-- 送礼目标选择（情趣玩具时显示） -->
+        <div class="wechat-gift-target hidden" id="wechat-gift-target"></div>
+        <div class="wechat-gift-tabs" id="wechat-gift-tabs"></div>
+        <div class="wechat-gift-grid" id="wechat-gift-grid"></div>
+        <div class="wechat-gift-desc-row">
+          <input type="text" class="wechat-gift-desc-input" id="wechat-gift-desc" placeholder="添加留言（选填）" maxlength="50">
+        </div>
+      </div>
+      <div class="wechat-gift-footer">
+        <button class="wechat-gift-send-btn" id="wechat-gift-send" disabled>请选择礼物</button>
+      </div>
+    </div>
+
+    <!-- 礼物送达询问弹窗 -->
+    <div id="wechat-gift-arrival-modal" class="wechat-modal hidden">
+      <div class="wechat-modal-content wechat-gift-arrival-content">
+        <div class="wechat-modal-title">商品已送达</div>
+        <div class="wechat-modal-body" id="wechat-gift-arrival-body">
+          您的商品已送达，您要现在开始玩吗？
+        </div>
+        <div class="wechat-modal-actions">
+          <button class="wechat-btn wechat-gift-arrival-btn-no" id="wechat-gift-arrival-no">稍后</button>
+          <button class="wechat-btn wechat-gift-arrival-btn-yes" id="wechat-gift-arrival-yes">开始</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 玩具控制页面 -->
+    <div id="wechat-toy-control-page" class="wechat-toy-control-page hidden">
+      <div class="wechat-navbar wechat-toy-control-navbar">
+        <button class="wechat-navbar-btn wechat-navbar-back" id="wechat-toy-control-back">
+          <svg viewBox="0 0 24 24" width="24" height="24"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="wechat-navbar-title" id="wechat-toy-control-title">玩具控制</span>
+        <span></span>
+      </div>
+
+      <!-- 控制按钮区域 -->
+      <div class="wechat-toy-control-buttons" id="wechat-toy-control-buttons">
+        <!-- 按钮由JS动态渲染 -->
+      </div>
+
+      <!-- 电击按钮行（仅微电流乳链） -->
+      <div class="wechat-toy-btn-row wechat-toy-shock-row hidden" id="wechat-toy-shock-row">
+        <!-- 由JS动态渲染 -->
+      </div>
+
+      <!-- 聊天区域 -->
+      <div class="wechat-toy-control-chat">
+        <div class="wechat-toy-control-messages" id="wechat-toy-control-messages">
+          <!-- 消息列表由JS动态渲染 -->
+        </div>
+      </div>
+
+      <!-- 输入区域 -->
+      <div class="wechat-toy-control-input-area">
+        <input type="text" id="wechat-toy-control-input" class="wechat-toy-control-input" placeholder="说点什么..." />
+        <button id="wechat-toy-control-send" class="wechat-toy-control-send">发送</button>
+      </div>
+    </div>
+  `;
+}
+
 // 发转账页面 HTML
 function generateTransferPageHTML() {
   return `
@@ -1530,6 +1620,36 @@ function generateListenTogetherHTML() {
           <input type="text" id="wechat-listen-change-input" placeholder="搜索歌曲">
         </div>
         <div class="wechat-listen-change-results" id="wechat-listen-change-results"></div>
+      </div>
+    </div>
+  `;
+}
+
+// 历史记录页面 HTML
+function generateHistoryPageHTML() {
+  return `
+    <!-- 历史记录页面 -->
+    <div id="wechat-history-page" class="wechat-history-page hidden">
+      <!-- 导航栏 -->
+      <div class="wechat-history-navbar">
+        <button class="wechat-navbar-btn wechat-navbar-back" id="wechat-history-back-btn">
+          <svg viewBox="0 0 24 24" width="24" height="24"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="wechat-navbar-title">历史记录</span>
+        <div style="width: 24px;"></div>
+      </div>
+
+      <!-- 四个标签按钮 -->
+      <div class="wechat-history-tabs">
+        <button class="wechat-history-tab active" data-tab="listen">一起听</button>
+        <button class="wechat-history-tab" data-tab="voice">语音通话</button>
+        <button class="wechat-history-tab" data-tab="video">视频通话</button>
+        <button class="wechat-history-tab wechat-history-tab-pink" data-tab="toy">心动瞬间</button>
+      </div>
+
+      <!-- 内容区域 -->
+      <div class="wechat-history-content" id="wechat-history-content">
+        <!-- 由 JS 动态填充 -->
       </div>
     </div>
   `;

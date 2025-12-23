@@ -18,8 +18,19 @@ let currentContactIndex = null;
 let currentMomentId = null;
 let currentReplyTo = null; // 当前回复的评论者名称
 
-// 消息计数器（用于保底机制）
-let messageCounters = {};
+// 消息计数器（用于保底机制）- 持久化存储在 settings 中
+function getMessageCounter(contactId) {
+  const settings = getSettings();
+  if (!settings.momentMessageCounters) settings.momentMessageCounters = {};
+  return settings.momentMessageCounters[contactId] || 0;
+}
+
+function setMessageCounter(contactId, value) {
+  const settings = getSettings();
+  if (!settings.momentMessageCounters) settings.momentMessageCounters = {};
+  settings.momentMessageCounters[contactId] = value;
+  requestSave();
+}
 
 /**
  * 初始化朋友圈模块
@@ -2267,20 +2278,16 @@ function addPrivateChatMessage(contactIndex, contact, message) {
 export function recordMessageAndCheckTrigger(contactId) {
   if (!contactId) return false;
 
-  // 初始化计数器
-  if (!messageCounters[contactId]) {
-    messageCounters[contactId] = 0;
-  }
+  // 计数器 +1（持久化存储）
+  const count = getMessageCounter(contactId) + 1;
+  setMessageCounter(contactId, count);
 
-  messageCounters[contactId]++;
-
-  const count = messageCounters[contactId];
   console.log(`[可乐] 朋友圈触发检查: ${contactId} 已累计 ${count} 条消息`);
 
   // 保底机制：每100条消息必触发
   if (count >= 100) {
     console.log(`[可乐] 触发保底机制: ${contactId} 达到100条消息`);
-    messageCounters[contactId] = 0;
+    setMessageCounter(contactId, 0);
     return true;
   }
 
@@ -2288,7 +2295,7 @@ export function recordMessageAndCheckTrigger(contactId) {
   // 但至少要有5条消息后才开始随机
   if (count >= 5 && Math.random() < 0.10) {
     console.log(`[可乐] 随机触发: ${contactId} 在第 ${count} 条消息触发`);
-    messageCounters[contactId] = 0;
+    setMessageCounter(contactId, 0);
     return true;
   }
 
@@ -2334,11 +2341,15 @@ export async function tryTriggerMomentAfterChat(contactIndex) {
  * @param {string} contactId - 联系人ID，不传则重置所有
  */
 export function resetMessageCounter(contactId = null) {
+  const settings = getSettings();
+  if (!settings.momentMessageCounters) settings.momentMessageCounters = {};
+
   if (contactId) {
-    messageCounters[contactId] = 0;
+    settings.momentMessageCounters[contactId] = 0;
   } else {
-    messageCounters = {};
+    settings.momentMessageCounters = {};
   }
+  requestSave();
 }
 
 /**

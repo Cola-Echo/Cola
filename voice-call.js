@@ -18,13 +18,16 @@ let callState = {
   timerInterval: null,
   dotsInterval: null,
   connectTimeout: null, // 连接超时计时器
+  aiHangupTimeout: null, // AI主动挂断计时器
   contactIndex: -1,
   contactName: '',
   contactAvatar: '',
   messages: [], // 通话中的消息
   contact: null,
   initiator: 'user', // 谁发起的通话: 'user' 或 'ai'
-  rejectedByUser: false // 是否被用户主动拒绝
+  rejectedByUser: false, // 是否被用户主动拒绝
+  rejectedByAI: false, // 是否被AI主动拒绝
+  hungUpByAI: false // 是否被AI主动挂断
 };
 
 // 开始语音通话
@@ -46,7 +49,9 @@ export function startVoiceCall(initiator = 'user', contactIndex = currentChatInd
   callState.isSpeakerOn = false;
   callState.messages = []; // 重置消息
   callState.initiator = initiator; // 记录谁发起的通话
-  callState.rejectedByUser = false; // 重置拒绝状态
+  callState.rejectedByUser = false; // 重置用户拒绝状态
+  callState.rejectedByAI = false; // 重置AI拒绝状态
+  callState.hungUpByAI = false; // 重置AI挂断状态
 
   showCallPage();
   startConnecting();
@@ -125,7 +130,7 @@ function showCallPage() {
 }
 
 // 开始连接动画
-function startConnecting() {
+async function startConnecting() {
   const statusEl = document.getElementById('wechat-voice-call-status');
   if (!statusEl) return;
 
@@ -143,13 +148,21 @@ function startConnecting() {
   }, 500);
 
   if (callState.initiator === 'user') {
-    // 用户发起：2-4秒后自动接通
-    const connectDelay = 2000 + Math.random() * 2000;
-    callState.connectTimeout = setTimeout(() => {
+    // 用户发起：调用AI决策是否接听
+    const shouldAnswer = await askAIToAnswerCall(callState.contact, 'voice');
+
+    if (!callState.isActive) return; // 用户可能已经取消
+
+    if (shouldAnswer) {
+      // AI决定接听
       if (callState.isActive && !callState.isConnected) {
         onCallConnected();
       }
-    }, connectDelay);
+    } else {
+      // AI决定拒接
+      callState.rejectedByAI = true;
+      hangupCall();
+    }
   } else {
     // AI发起：15秒后如果用户没接就超时取消
     callState.connectTimeout = setTimeout(() => {
@@ -159,6 +172,49 @@ function startConnecting() {
         hangupCall();
       }
     }, 15000);
+  }
+}
+
+// AI决定是否接听用户的来电
+async function askAIToAnswerCall(contact, callType = 'voice') {
+  if (!contact) return true;
+
+  try {
+    const { callAI } = await import('./ai.js');
+
+    const callTypeText = callType === 'video' ? '视频' : '语音';
+    const prompt = `[用户正在给你打${callTypeText}电话，你需要决定是否接听]
+
+根据你的性格和当前心情决定：
+- 如果你想接听，只回复：[接听]
+- 如果你不想接听（比如在忙、生气、故意不接、想让用户着急等），只回复：[拒接]
+
+【绝对禁止】
+- 只能回复 [接听] 或 [拒接]，不能有任何其他文字！
+- [接听] 或 [拒接] 必须独立成行，前后不能有任何内容！
+× 错误：好吧[接听] ← 有其他文字，错误！
+× 错误：[拒接]哼 ← 有其他文字，错误！
+√ 正确：[接听]
+√ 正确：[拒接]
+
+注意：大多数情况下你应该接听，只有特殊情况才拒接。`;
+
+    const response = await callAI(contact, prompt);
+    const trimmed = (response || '').trim();
+
+    console.log('[可乐] AI接听决策:', trimmed);
+
+    // 检查是否拒接
+    if (trimmed.includes('[拒接]') || trimmed.includes('拒接')) {
+      return false;
+    }
+
+    // 默认接听
+    return true;
+  } catch (err) {
+    console.error('[可乐] AI接听决策失败:', err);
+    // 出错时默认接听
+    return true;
   }
 }
 
@@ -201,6 +257,66 @@ function onCallConnected() {
   if (callState.initiator === 'ai') {
     triggerAIGreeting();
   }
+
+  // 启动AI主动挂断检查（通话30秒后开始随机检查）
+  scheduleAIHangupCheck();
+}
+
+// 调度AI主动挂断检查
+// 通话接通后30秒开始，每次用户发消息后AI回复时有5%概率挂断
+// 同时设置一个180秒（3分钟）的保底挂断时间
+function scheduleAIHangupCheck() {
+  // 清除已有的计时器
+  clearTimeout(callState.aiHangupTimeout);
+
+  // 设置保底挂断时间：通话3分钟后有50%概率挂断，超过5分钟必定挂断
+  const checkTime = 180000 + Math.random() * 120000; // 3-5分钟
+  callState.aiHangupTimeout = setTimeout(() => {
+    if (callState.isConnected) {
+      // 50%概率挂断，否则再等1-2分钟
+      if (Math.random() < 0.5) {
+        aiHangup();
+      } else {
+        // 再设置一个60-120秒后的必定挂断
+        callState.aiHangupTimeout = setTimeout(() => {
+          if (callState.isConnected) {
+            aiHangup();
+          }
+        }, 60000 + Math.random() * 60000);
+      }
+    }
+  }, checkTime);
+}
+
+// 每次AI回复后检查是否要挂断（5%概率，通话30秒后生效）
+export function checkAIHangupAfterReply() {
+  if (!callState.isConnected || !callState.startTime) return false;
+
+  // 通话至少30秒后才开始随机挂断检查
+  const elapsed = Date.now() - callState.startTime;
+  if (elapsed < 30000) return false;
+
+  // 5%概率挂断
+  if (Math.random() < 0.05) {
+    // 延迟1-3秒后挂断，更自然
+    setTimeout(() => {
+      if (callState.isConnected) {
+        aiHangup();
+      }
+    }, 1000 + Math.random() * 2000);
+    return true;
+  }
+
+  return false;
+}
+
+// AI主动挂断电话
+function aiHangup() {
+  if (!callState.isConnected) return;
+
+  console.log('[可乐] AI主动挂断电话');
+  callState.hungUpByAI = true;
+  hangupCall();
 }
 
 // 开始通话计时
@@ -223,6 +339,9 @@ function startCallTimer() {
 
 // 挂断电话
 export function hangupCall() {
+  // 清除AI挂断计时器
+  clearTimeout(callState.aiHangupTimeout);
+
   // 计算通话时长
   let durationStr = '00:00';
   if (callState.isConnected && callState.startTime) {
@@ -254,9 +373,15 @@ export function hangupCall() {
     } else {
       // 未接通的通话
       if (callState.initiator === 'user') {
-        // 用户发起，用户取消
-        callContent = '[通话记录:已取消]';
-        lastMessage = '已取消';
+        if (callState.rejectedByAI) {
+          // 用户发起，AI拒接
+          callContent = '[通话记录:对方已拒绝]';
+          lastMessage = '对方已拒绝';
+        } else {
+          // 用户发起，用户取消
+          callContent = '[通话记录:已取消]';
+          lastMessage = '已取消';
+        }
       } else if (callState.rejectedByUser) {
         // AI发起，用户主动拒绝
         callContent = '[通话记录:已拒绝]';
@@ -279,12 +404,12 @@ export function hangupCall() {
 
     contact.chatHistory.push(callRecord);
 
-    // 通话内容只进“通话历史”，不在主聊天界面展示（避免污染主界面/列表预览）
+    // 通话内容只进"通话历史"，不在主聊天界面展示（避免污染主界面/列表预览）
     if (callState.messages && callState.messages.length > 0) {
       const callStatusForHistory = callState.isConnected
         ? 'connected'
         : (callState.initiator === 'user'
-          ? 'cancelled'
+          ? (callState.rejectedByAI ? 'rejectedByAI' : 'cancelled')
           : (callState.rejectedByUser ? 'rejected' : 'timeout'));
       contact.callHistory = Array.isArray(contact.callHistory) ? contact.callHistory : [];
       contact.callHistory.push({
@@ -301,11 +426,11 @@ export function hangupCall() {
     contact.lastMessage = lastMessage;
 
     // 在聊天界面显示通话记录
-    // 传递状态类型: 'connected' | 'cancelled' | 'rejected' | 'timeout'
+    // 传递状态类型: 'connected' | 'cancelled' | 'rejected' | 'rejectedByAI' | 'timeout'
     let callStatus = 'connected';
     if (!callState.isConnected) {
       if (callState.initiator === 'user') {
-        callStatus = 'cancelled';
+        callStatus = callState.rejectedByAI ? 'rejectedByAI' : 'cancelled';
       } else if (callState.rejectedByUser) {
         callStatus = 'rejected';
       } else {
@@ -317,7 +442,7 @@ export function hangupCall() {
     }
 
     // AI 对通话结束做出反应（所有情况都触发）
-    triggerCallEndReaction(contact, callStatus, callState.initiator, callState.messages);
+    triggerCallEndReaction(contact, callStatus, callState.initiator, callState.messages, callState.hungUpByAI);
 
     requestSave();
     refreshChatList();
@@ -383,6 +508,14 @@ function appendCallRecordMessage(role, status, duration, contact) {
       <div class="wechat-call-record">
         ${phoneIconSVG}
         <span class="wechat-call-record-text">已取消</span>
+      </div>
+    `;
+  } else if (status === 'rejectedByAI') {
+    // 用户发起，AI拒接：对方已拒绝（绿色，和通话时长样式一致）
+    callRecordHTML = `
+      <div class="wechat-call-record">
+        ${phoneIconSVG}
+        <span class="wechat-call-record-text">对方已拒绝</span>
       </div>
     `;
   } else if (status === 'rejected') {
@@ -600,7 +733,7 @@ async function triggerAIGreeting() {
 }
 
 // AI 对通话结束做出反应
-async function triggerCallEndReaction(contact, callStatus, initiator, callMessages = []) {
+async function triggerCallEndReaction(contact, callStatus, initiator, callMessages = [], hungUpByAI = false) {
   if (!contact) return;
 
   // 构建反应提示
@@ -608,6 +741,9 @@ async function triggerCallEndReaction(contact, callStatus, initiator, callMessag
   if (callStatus === 'cancelled') {
     // 用户取消了自己发起的通话
     reactionPrompt = '[用户刚才给你打了电话，但还没等你接就取消了。请对此做出自然的反应，可以表示疑惑、好奇或关心，问问用户怎么了。回复1-2句话即可，简短自然。]';
+  } else if (callStatus === 'rejectedByAI') {
+    // AI主动拒绝了用户的来电
+    reactionPrompt = '[你刚才拒绝了用户的电话。请对此做出自然的反应，解释为什么不接（比如在忙、不方便、想让对方着急一下、生气中等）。回复1-2句话即可，简短自然，符合你的性格。]';
   } else if (callStatus === 'rejected') {
     // AI发起的通话被用户拒绝
     reactionPrompt = '[你刚才给用户打电话，但用户直接挂断拒接了。请对此做出自然的反应，可以表示失落、委屈或疑惑。回复1-2句话即可，简短自然。]';
@@ -619,15 +755,33 @@ async function triggerCallEndReaction(contact, callStatus, initiator, callMessag
     // 根据通话内容生成回复
     if (callMessages && callMessages.length > 0) {
       const lastMessages = callMessages.slice(-5).map(m => `${m.role === 'user' ? '用户' : '你'}: ${m.content}`).join('\n');
-      reactionPrompt = `[语音通话刚刚挂断了，现在回到微信文字聊天。通话最后几句是：
+
+      if (hungUpByAI) {
+        // AI主动挂断的情况
+        reactionPrompt = `[语音通话刚刚挂断了（是你主动挂的），现在回到微信文字聊天。通话最后几句是：
+${lastMessages}
+
+【重要】是你主动挂断的电话，你现在是发微信消息。请根据通话内容自然收尾：
+- 可能是聊完了正常告别
+- 可能是有事要忙、来不及了
+- 可能是情绪原因（害羞、生气、不想聊了等）
+回复1句话，符合你的人设性格。]`;
+      } else {
+        // 用户挂断的情况
+        reactionPrompt = `[语音通话刚刚挂断了，现在回到微信文字聊天。通话最后几句是：
 ${lastMessages}
 
 【重要】通话已结束，你现在是发微信消息，不是继续语音通话。你应该对"挂断"这件事本身做反应：
 - 如果是正常告别后挂的：简单告别或表达心情
 - 如果是突然/意外挂断（聊到一半、正在做某事时断了）：表示疑惑，问问怎么回事
 绝对不要继续或延续通话里正在进行的内容或动作。回复1句话，符合你的性格。]`;
+      }
     } else {
-      reactionPrompt = '[语音通话刚刚挂断了，现在回到微信文字聊天。请对"挂断"做出简单反应，不要假设通话中发生了什么。回复1句话，符合你的性格。]';
+      if (hungUpByAI) {
+        reactionPrompt = '[语音通话刚刚挂断了（是你主动挂的），现在回到微信文字聊天。请对此做出简单反应，符合你的人设性格。回复1句话。]';
+      } else {
+        reactionPrompt = '[语音通话刚刚挂断了，现在回到微信文字聊天。请对"挂断"做出简单反应，不要假设通话中发生了什么。回复1句话，符合你的性格。]';
+      }
     }
   } else {
     return; // 未知状态不处理
@@ -768,6 +922,9 @@ async function sendCallMessage() {
         }
       }
     }
+
+    // AI回复完成后，检查是否要主动挂断（5%概率，通话30秒后生效）
+    checkAIHangupAfterReply();
   } catch (err) {
     hideCallTypingIndicator();
     console.error('[可乐] 通话消息AI回复失败:', err);

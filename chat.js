@@ -17,6 +17,7 @@ import { startVoiceCall } from './voice-call.js';
 import { startVideoCall } from './video-call.js';
 import { showOpenRedPacket, generateRedPacketId } from './red-packet.js';
 import { showReceiveTransferPage, generateTransferId } from './transfer.js';
+import { checkGiftDelivery } from './gift.js';
 
 // 当前聊天的联系人索引
 export let currentChatIndex = -1;
@@ -75,6 +76,336 @@ function extractCallRequest(message) {
 
 // 内部使用的别名
 const detectAiCallRequestType = detectAiCallRequest;
+
+// 检测并提取AI拉黑/取消拉黑标签
+// 返回 { action: 'block'|'unblock'|null, textWithoutTag: string }
+export function extractBlockAction(message) {
+  if (!message || typeof message !== 'string') return { action: null, textWithoutTag: message || '' };
+
+  // 检查是否包含拉黑标签
+  const blockMatch = message.match(/\[拉黑\]/);
+  if (blockMatch) {
+    const textWithoutTag = message.replace(blockMatch[0], '').trim();
+    return { action: 'block', textWithoutTag };
+  }
+
+  // 检查是否包含取消拉黑标签
+  const unblockMatch = message.match(/\[取消拉黑\]/);
+  if (unblockMatch) {
+    const textWithoutTag = message.replace(unblockMatch[0], '').trim();
+    return { action: 'unblock', textWithoutTag };
+  }
+
+  return { action: null, textWithoutTag: message };
+}
+
+// 显示消息被拒收提示（在消息左侧显示红色感叹号）
+export function appendBlockedNotice(contact) {
+  const messagesContainer = document.getElementById('wechat-chat-messages');
+  if (!messagesContainer) return;
+
+  // 找到最后一条用户消息
+  const lastUserMsg = messagesContainer.querySelector('.wechat-message.self:last-of-type');
+  if (!lastUserMsg) return;
+
+  // 检查是否已经有感叹号了
+  if (lastUserMsg.querySelector('.wechat-blocked-exclamation')) return;
+
+  // 在消息气泡左侧添加红色感叹号
+  const exclamationDiv = document.createElement('div');
+  exclamationDiv.className = 'wechat-blocked-exclamation';
+  exclamationDiv.innerHTML = `<span class="wechat-blocked-exclamation-icon">!</span>`;
+
+  // 插入到消息内容前面
+  const contentDiv = lastUserMsg.querySelector('.wechat-message-content');
+  if (contentDiv) {
+    contentDiv.insertBefore(exclamationDiv, contentDiv.firstChild);
+  }
+
+  // 添加点击事件
+  exclamationDiv.addEventListener('click', () => {
+    handleBlockedExclamationClick(contact, exclamationDiv);
+  });
+}
+
+// 处理点击被拒收消息的感叹号
+async function handleBlockedExclamationClick(contact, exclamationEl) {
+  if (!contact) return;
+
+  // 显示加载状态
+  exclamationEl.classList.add('loading');
+
+  // 等待2秒
+  await sleep(2000);
+
+  // 弹出"已添加好友"的提示
+  showFriendAddedPopup(contact.name);
+
+  // 取消拉黑状态
+  contact.blockedByAI = false;
+  requestSave();
+
+  // 移除感叹号
+  exclamationEl.remove();
+
+  // 移除所有被拉黑时发送的消息的感叹号
+  const messagesContainer = document.getElementById('wechat-chat-messages');
+  if (messagesContainer) {
+    messagesContainer.querySelectorAll('.wechat-blocked-exclamation').forEach(el => el.remove());
+  }
+
+  // AI主动发消息
+  await triggerAIAfterUnblock(contact);
+}
+
+// 显示"已添加好友"的手机弹窗
+function showFriendAddedPopup(name) {
+  // 创建弹窗遮罩
+  const overlay = document.createElement('div');
+  overlay.className = 'wechat-phone-popup-overlay';
+  overlay.innerHTML = `
+    <div class="wechat-phone-popup">
+      <div class="wechat-phone-popup-icon">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#07c160" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M8 12l2.5 2.5L16 9"/>
+        </svg>
+      </div>
+      <div class="wechat-phone-popup-text">${escapeHtml(name)}已添加您为好友，现在可以开始聊天了。</div>
+      <div class="wechat-phone-popup-btn">确定</div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // 点击确定关闭
+  overlay.querySelector('.wechat-phone-popup-btn').addEventListener('click', () => {
+    overlay.remove();
+  });
+
+  // 点击遮罩也关闭
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+}
+
+// AI解除拉黑后主动发消息
+async function triggerAIAfterUnblock(contact) {
+  if (!contact) return;
+
+  const contactIndex = getSettings().contacts.indexOf(contact);
+  if (contactIndex < 0) return;
+
+  // 显示typing
+  if (currentChatIndex === contactIndex) {
+    showTypingIndicator(contact);
+  }
+
+  try {
+    const { callAI } = await import('./ai.js');
+    const prompt = '[你刚才把用户拉黑了，现在你们和好了，用户重新添加了你为好友。请主动和用户说点什么，表达你的态度（可以是原谅、撒娇、装作若无其事等，根据你的性格决定）。回复1-2句话即可。]';
+
+    const aiResponse = await callAI(contact, prompt);
+
+    if (currentChatIndex === contactIndex) {
+      hideTypingIndicator();
+    }
+
+    const aiMessages = splitAIMessages(aiResponse);
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+
+    for (const msg of aiMessages) {
+      if (!msg.trim()) continue;
+
+      // 解析引用格式
+      const { parseAIQuote } = await import('./chat.js');
+      const parsed = parseAIQuote(msg, contact);
+      const content = parsed.content;
+
+      contact.chatHistory.push({
+        role: 'assistant',
+        content: content,
+        time: timeStr,
+        timestamp: Date.now()
+      });
+
+      if (currentChatIndex === contactIndex) {
+        appendMessage('assistant', content, contact, false, parsed.quote);
+      } else {
+        contact.unreadCount = (contact.unreadCount || 0) + 1;
+      }
+
+      contact.lastMessage = content;
+      requestSave();
+      refreshChatList();
+
+      await sleep(1500);
+    }
+  } catch (err) {
+    console.error('[可乐] AI解除拉黑后发消息失败:', err);
+    if (currentChatIndex === contactIndex) {
+      hideTypingIndicator();
+    }
+  }
+}
+
+// 存储被拉黑期间AI发送的消息的定时器
+const blockedAITimers = new Map();
+
+// 用户拉黑AI时开始AI发消息
+export function startBlockedAIMessages(contact) {
+  if (!contact || !contact.id) return;
+
+  // 清除之前的定时器
+  stopBlockedAIMessages(contact);
+
+  // 初始化被拉黑期间的消息队列
+  if (!contact.blockedMessages) {
+    contact.blockedMessages = [];
+  }
+
+  // 开始定时发送消息
+  const timerId = setInterval(async () => {
+    if (!contact.isBlocked) {
+      stopBlockedAIMessages(contact);
+      return;
+    }
+
+    try {
+      const { callAI } = await import('./ai.js');
+      const msgCount = contact.blockedMessages.length;
+      let prompt;
+
+      if (msgCount === 0) {
+        prompt = '[用户把你拉黑了！你现在发的消息用户看不到。你很想跟用户说话，发一条消息表达你的情绪（困惑、委屈、生气等，根据你的性格）。1句话即可。]';
+      } else if (msgCount < 3) {
+        prompt = '[用户还是拉黑着你，你继续发消息但用户看不到。再发一条，可以是追问、撒娇、生气等。1句话即可。]';
+      } else {
+        prompt = '[用户还是没有取消拉黑你，继续发一条消息。可能开始认错、委屈、或者假装不在乎等。1句话即可。]';
+      }
+
+      const aiResponse = await callAI(contact, prompt);
+      const aiMessages = splitAIMessages(aiResponse);
+
+      const now = new Date();
+      const timeStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+
+      for (const msg of aiMessages) {
+        if (!msg.trim()) continue;
+
+        // 解析引用格式
+        const parsed = parseAIQuote(msg, contact);
+        const content = parsed.content;
+
+        // 存储到被拉黑消息队列（不存入主聊天记录）
+        contact.blockedMessages.push({
+          role: 'assistant',
+          content: content,
+          time: timeStr,
+          timestamp: Date.now(),
+          quote: parsed.quote || undefined
+        });
+
+        console.log('[可乐] AI被拉黑期间发送消息:', content.substring(0, 30));
+      }
+
+      requestSave();
+    } catch (err) {
+      console.error('[可乐] AI被拉黑期间发消息失败:', err);
+    }
+  }, 5000);
+
+  blockedAITimers.set(contact.id, timerId);
+}
+
+// 停止AI被拉黑期间的消息发送
+export function stopBlockedAIMessages(contact) {
+  if (!contact || !contact.id) return;
+
+  const timerId = blockedAITimers.get(contact.id);
+  if (timerId) {
+    clearInterval(timerId);
+    blockedAITimers.delete(contact.id);
+  }
+}
+
+// 用户取消拉黑AI时显示被拉黑期间的消息
+export async function showBlockedMessages(contact) {
+  if (!contact || !contact.blockedMessages || contact.blockedMessages.length === 0) return;
+
+  const contactIndex = getSettings().contacts.indexOf(contact);
+  const inChat = currentChatIndex === contactIndex;
+
+  // 逐条显示被拉黑期间的消息
+  for (const msg of contact.blockedMessages) {
+    // 添加到聊天记录
+    contact.chatHistory.push({
+      ...msg,
+      wasBlocked: true // 标记为被拉黑期间的消息
+    });
+
+    if (inChat) {
+      // 显示typing
+      showTypingIndicator(contact);
+      await sleep(1500);
+      hideTypingIndicator();
+
+      // 显示消息（带红色感叹号）
+      appendBlockedAIMessage(msg.content, contact, msg.quote);
+    } else {
+      contact.unreadCount = (contact.unreadCount || 0) + 1;
+    }
+
+    contact.lastMessage = msg.content;
+    requestSave();
+    refreshChatList();
+
+    await sleep(800);
+  }
+
+  // 清空被拉黑消息队列
+  contact.blockedMessages = [];
+  requestSave();
+}
+
+// 显示AI被拉黑期间发送的消息（右侧带红色感叹号）
+function appendBlockedAIMessage(content, contact, quote = null) {
+  const messagesContainer = document.getElementById('wechat-chat-messages');
+  if (!messagesContainer) return;
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = 'wechat-message'; // AI消息在左边
+
+  const firstChar = contact?.name ? contact.name.charAt(0) : '?';
+  const avatarContent = contact?.avatar
+    ? `<img src="${contact.avatar}" alt="" onerror="this.style.display='none';this.parentElement.innerHTML='${firstChar}'">`
+    : firstChar;
+
+  // 解析 meme 标签
+  const processedContent = parseMemeTag(content);
+  const hasMeme = processedContent !== content;
+  const bubbleContent = `<div class="wechat-message-bubble">${hasMeme ? processedContent : escapeHtml(content)}</div>`;
+
+  // 红色感叹号
+  const exclamationHtml = `
+    <div class="wechat-blocked-ai-exclamation" title="对方在您拉黑期间发送">
+      <span class="wechat-blocked-exclamation-icon">!</span>
+    </div>
+  `;
+
+  messageDiv.innerHTML = `
+    <div class="wechat-message-avatar">${avatarContent}</div>
+    <div class="wechat-message-content">${bubbleContent}${exclamationHtml}</div>
+  `;
+
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+  bindMessageBubbleEvents(messagesContainer);
+}
 
 // 检查聊天记录是否需要总结（单聊）
 export function checkSummaryReminder(contact) {
@@ -258,6 +589,11 @@ export function parseAIQuote(message, contact) {
       );
 
       if (contentMatch || stickerDescMatch || musicMatch) {
+        // 如果被引用的消息已被撤回，则不允许引用
+        if (historyMsg.isRecalled === true) {
+          continue; // 跳过已撤回的消息，继续查找
+        }
+
         if (historyMsg.role === 'user') {
           sender = context?.name1 || '用户';
         } else {
@@ -268,13 +604,20 @@ export function parseAIQuote(message, contact) {
         isPhoto = historyMsg.isPhoto === true;
         isSticker = historyMsg.isSticker === true;
         isMusic = historyMsg.isMusic === true;
+
+        // 用完整的历史消息内容替换AI给的关键词
         if (isMusic && historyMsg.musicInfo) {
           musicInfo = historyMsg.musicInfo;
-          // 修正引用内容为“歌手-歌名”格式（不加空格）
+          // 音乐消息：使用"歌手-歌名"格式
           const artist = (historyMsg.musicInfo.artist || '未知歌手').toString().trim();
           const name = (historyMsg.musicInfo.name || '').toString().trim();
           quoteContent = artist && name ? `${artist}-${name}` : (name || artist || quoteContent);
+        } else if (!isSticker && historyMsg.content) {
+          // 普通文字/语音/照片消息：使用完整原文
+          quoteContent = historyMsg.content;
         }
+        // 表情消息保持原样，渲染时会显示[表情]
+
         break;
       }
     }
@@ -313,6 +656,14 @@ export function setCurrentChatIndex(index) {
   currentChatIndex = index;
 }
 
+// 更新拉黑菜单文本
+export function updateBlockMenuText(isBlocked) {
+  const blockText = document.getElementById('wechat-menu-block-text');
+  if (blockText) {
+    blockText.textContent = isBlocked ? '取消拉黑' : '拉黑';
+  }
+}
+
 // 打开聊天界面
 export function openChat(contactIndex) {
   const settings = getSettings();
@@ -327,6 +678,9 @@ export function openChat(contactIndex) {
     requestSave();
     refreshChatList();
   }
+
+  // 更新拉黑菜单文本
+  updateBlockMenuText(contact.isBlocked === true);
 
   document.getElementById('wechat-main-content').classList.add('hidden');
   document.getElementById('wechat-chat-page').classList.remove('hidden');
@@ -714,6 +1068,33 @@ export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
       return;
     }
 
+    // 检查是否是礼物消息
+    if (msg.isGift && msg.giftInfo) {
+      const giftInfo = msg.giftInfo;
+      const isToy = giftInfo.isToy === true;
+      const giftTypeClass = isToy ? 'wechat-gift-bubble-toy' : '';
+      const giftTypeLabel = isToy ? '情趣礼物' : '礼物';
+
+      const giftBubbleHTML = `
+        <div class="wechat-gift-bubble ${giftTypeClass}">
+          <div class="wechat-gift-bubble-emoji">${giftInfo.emoji || '🎁'}</div>
+          <div class="wechat-gift-bubble-info">
+            <div class="wechat-gift-bubble-name">${escapeHtml(giftInfo.name || '礼物')}</div>
+            ${giftInfo.customDesc ? `<div class="wechat-gift-bubble-desc">${escapeHtml(giftInfo.customDesc)}</div>` : ''}
+          </div>
+          <div class="wechat-gift-bubble-label">${giftTypeLabel}</div>
+        </div>
+      `;
+
+      if (msg.role === 'user') {
+        html += `<div class="wechat-message self" data-msg-index="${index}" data-msg-role="user"><div class="wechat-message-avatar">${getUserAvatarHTML()}</div><div class="wechat-message-content">${giftBubbleHTML}</div></div>`;
+      } else {
+        html += `<div class="wechat-message" data-msg-index="${index}" data-msg-role="assistant"><div class="wechat-message-avatar">${avatarContent}</div><div class="wechat-message-content">${giftBubbleHTML}</div></div>`;
+      }
+      lastTimestamp = msgTimestamp;
+      return;
+    }
+
     if (index === 0 || (msgTimestamp - lastTimestamp > TIME_GAP_THRESHOLD)) {
       const timeLabel = formatMessageTime(msgTimestamp);
       if (timeLabel) {
@@ -838,8 +1219,8 @@ export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
       } else if (msg.quote.isSticker) {
         quoteText = '[表情]';
       } else {
-        quoteText = quoteContent.length > 30
-          ? quoteContent.substring(0, 30) + '...'
+        quoteText = quoteContent.length > 8
+          ? quoteContent.substring(0, 8) + '...'
           : quoteContent;
       }
       quoteHtml = `
@@ -1152,8 +1533,8 @@ export function appendMessage(role, content, contact, isVoice = false, quote = n
     } else if (quote.isSticker) {
       quoteText = '[表情]';
     } else {
-      quoteText = quote.content.length > 30
-        ? quote.content.substring(0, 30) + '...'
+      quoteText = quote.content.length > 8
+        ? quote.content.substring(0, 8) + '...'
         : quote.content;
     }
     quoteHtml = `
@@ -1437,6 +1818,17 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
   saveNow();
   refreshChatList();
 
+  // 如果联系人被拉黑，不触发AI回复
+  if (contact.isBlocked === true) {
+    return;
+  }
+
+  // 如果用户被AI拉黑，显示被拒收提示，不触发AI回复
+  if (contact.blockedByAI === true) {
+    appendBlockedNotice(contact);
+    return;
+  }
+
   // 只有用户还在当前聊天时才显示打字指示器
   if (currentChatIndex === contactIndex) {
     showTypingIndicator(contact);
@@ -1487,6 +1879,28 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
       let aiMusicInfo = null;
       let stickerUrl = null;
       let aiQuote = null;
+
+      // 检测拉黑/取消拉黑标签
+      const blockAction = extractBlockAction(aiMsg);
+      if (blockAction.action === 'block') {
+        contact.blockedByAI = true;
+        aiMsg = blockAction.textWithoutTag;
+        console.log('[可乐] AI拉黑了用户');
+        requestSave();
+        // 如果拉黑标签是单独一条消息（没有其他文本），跳过显示
+        if (!aiMsg.trim()) {
+          continue;
+        }
+      } else if (blockAction.action === 'unblock') {
+        contact.blockedByAI = false;
+        aiMsg = blockAction.textWithoutTag;
+        console.log('[可乐] AI取消拉黑用户');
+        requestSave();
+        // 如果取消拉黑标签是单独一条消息（没有其他文本），跳过显示
+        if (!aiMsg.trim()) {
+          continue;
+        }
+      }
 
       const voiceMatch = aiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
       if (voiceMatch) {
@@ -1559,8 +1973,8 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
         continue; // 跳过后续处理，继续下一条消息
       }
 
-      // 解析AI撤回格式 [撤回] 或 [撤回了一条消息]
-      const recallMatch = aiMsg.match(/^\[撤回(?:了一条消息)?\]$/);
+      // 解析AI撤回格式 [撤回] / [撤回了一条消息] / [撤回消息] / [已撤回] 等
+      const recallMatch = aiMsg.match(/^\[(?:撤回(?:了?一条)?消息?|已撤回|消息撤回)\]$/);
       if (recallMatch) {
         // 找到AI的上一条消息并标记为撤回
         // 等待5秒让用户看到消息内容后再撤回
@@ -1905,6 +2319,9 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
     refreshChatList();
     checkSummaryReminder(contact);
 
+    // 检查礼物是否送达（25条消息后触发）
+    checkGiftDelivery(contact);
+
     // 尝试触发朋友圈生成（随机触发+30条保底）
     tryTriggerMomentAfterChat(currentChatIndex);
 
@@ -1987,6 +2404,22 @@ export async function sendStickerMessage(stickerUrl, description = '') {
       let aiIsPhoto = false;
       let stickerUrl = null;
 
+      // 检测拉黑/取消拉黑标签
+      const blockAction = extractBlockAction(aiMsg);
+      if (blockAction.action === 'block') {
+        contact.blockedByAI = true;
+        aiMsg = blockAction.textWithoutTag;
+        console.log('[可乐] AI拉黑了用户 (sendStickerMessage)');
+        requestSave();
+        if (!aiMsg.trim()) continue;
+      } else if (blockAction.action === 'unblock') {
+        contact.blockedByAI = false;
+        aiMsg = blockAction.textWithoutTag;
+        console.log('[可乐] AI取消拉黑用户 (sendStickerMessage)');
+        requestSave();
+        if (!aiMsg.trim()) continue;
+      }
+
       const voiceMatch = aiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
       if (voiceMatch) {
         aiMsg = voiceMatch[1];
@@ -2016,8 +2449,8 @@ export async function sendStickerMessage(stickerUrl, description = '') {
         continue;
       }
 
-      // 解析AI撤回格式 [撤回] 或 [撤回了一条消息]
-      const recallMatch = aiMsg.match(/^\[撤回(?:了一条消息)?\]$/);
+      // 解析AI撤回格式 [撤回] / [撤回了一条消息] / [撤回消息] / [已撤回] 等
+      const recallMatch = aiMsg.match(/^\[(?:撤回(?:了?一条)?消息?|已撤回|消息撤回)\]$/);
       if (recallMatch) {
         // 等待5秒让用户看到消息内容后再撤回
         await sleep(5000);
@@ -2341,6 +2774,17 @@ export async function sendPhotoMessage(description) {
   // 显示消息
   appendPhotoMessage('user', polishedDescription, contact);
 
+  // 如果联系人被拉黑，不触发AI回复
+  if (contact.isBlocked === true) {
+    return;
+  }
+
+  // 如果用户被AI拉黑，显示被拒收提示，不触发AI回复
+  if (contact.blockedByAI === true) {
+    appendBlockedNotice(contact);
+    return;
+  }
+
   // 只有用户还在当前聊天时才显示打字指示器
   if (currentChatIndex === contactIndex) {
     showTypingIndicator(contact);
@@ -2367,6 +2811,22 @@ export async function sendPhotoMessage(description) {
       let aiIsSticker = false;
       let aiIsPhoto = false;
       let stickerUrl = null;
+
+      // 检测拉黑/取消拉黑标签
+      const blockAction = extractBlockAction(aiMsg);
+      if (blockAction.action === 'block') {
+        contact.blockedByAI = true;
+        aiMsg = blockAction.textWithoutTag;
+        console.log('[可乐] AI拉黑了用户 (sendPhotoMessage)');
+        requestSave();
+        if (!aiMsg.trim()) continue;
+      } else if (blockAction.action === 'unblock') {
+        contact.blockedByAI = false;
+        aiMsg = blockAction.textWithoutTag;
+        console.log('[可乐] AI取消拉黑用户 (sendPhotoMessage)');
+        requestSave();
+        if (!aiMsg.trim()) continue;
+      }
 
       const voiceMatch = aiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
       if (voiceMatch) {
@@ -2397,8 +2857,8 @@ export async function sendPhotoMessage(description) {
         continue;
       }
 
-      // 解析AI撤回格式 [撤回] 或 [撤回了一条消息]
-      const recallMatch = aiMsg.match(/^\[撤回(?:了一条消息)?\]$/);
+      // 解析AI撤回格式 [撤回] / [撤回了一条消息] / [撤回消息] / [已撤回] 等
+      const recallMatch = aiMsg.match(/^\[(?:撤回(?:了?一条)?消息?|已撤回|消息撤回)\]$/);
       if (recallMatch) {
         // 等待5秒让用户看到消息内容后再撤回
         await sleep(5000);
@@ -2822,6 +3282,17 @@ export async function sendBatchMessages(messages) {
   saveNow();
   refreshChatList();
 
+  // 如果联系人被拉黑，不触发AI回复
+  if (contact.isBlocked === true) {
+    return;
+  }
+
+  // 如果用户被AI拉黑，显示被拒收提示，不触发AI回复
+  if (contact.blockedByAI === true) {
+    appendBlockedNotice(contact);
+    return;
+  }
+
   // 第二步：调用AI（一次性）
   // 只有用户还在当前聊天时才显示打字指示器
   if (currentChatIndex === contactIndex) {
@@ -2851,6 +3322,22 @@ export async function sendBatchMessages(messages) {
       let stickerUrl = null;
       let aiQuote = null;
 
+      // 检测拉黑/取消拉黑标签
+      const blockAction = extractBlockAction(aiMsg);
+      if (blockAction.action === 'block') {
+        contact.blockedByAI = true;
+        aiMsg = blockAction.textWithoutTag;
+        console.log('[可乐] AI拉黑了用户 (sendBatchMessages)');
+        requestSave();
+        if (!aiMsg.trim()) continue;
+      } else if (blockAction.action === 'unblock') {
+        contact.blockedByAI = false;
+        aiMsg = blockAction.textWithoutTag;
+        console.log('[可乐] AI取消拉黑用户 (sendBatchMessages)');
+        requestSave();
+        if (!aiMsg.trim()) continue;
+      }
+
       // 解析语音格式
       const voiceMatch = aiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
       if (voiceMatch) {
@@ -2865,8 +3352,8 @@ export async function sendBatchMessages(messages) {
         aiIsPhoto = true;
       }
 
-      // 解析撤回格式 [撤回] 或 [撤回了一条消息]
-      const recallMatch = aiMsg.match(/^\[撤回(?:了一条消息)?\]$/);
+      // 解析撤回格式 [撤回] / [撤回了一条消息] / [撤回消息] / [已撤回] 等
+      const recallMatch = aiMsg.match(/^\[(?:撤回(?:了?一条)?消息?|已撤回|消息撤回)\]$/);
       if (recallMatch) {
         // 等待5秒让用户看到消息内容后再撤回
         await sleep(5000);

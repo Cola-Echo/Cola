@@ -148,13 +148,17 @@ export const LISTEN_TOGETHER_PROMPT_TEMPLATE = `##【一起听歌场景】
 
 【绝对禁止 - 违反会被过滤】
 - 禁止使用小括号描述动作或语气，如（xxx）
-- 禁止 [表情:xxx] [照片:xxx] [语音:xxx] [音乐:xxx]
+- 禁止 [表情:xxx] [照片:xxx] [语音:xxx]
+- 禁止 [分享音乐:xxx] - 一起听场景不需要分享音乐！
 - 禁止 [回复:xxx] 引用格式
 - 禁止 <meme>xxx</meme>
 - 禁止任何非文字格式
 
-【换歌格式】
-如果想换歌：[换歌:歌名]
+【换歌格式 - 仅限一起听场景】
+想换一首歌时使用：[换歌:歌名]
+- 只需要歌名，不需要歌手名
+- 这是一起听专用格式，不是分享音乐
+- 示例：[换歌:晴天]、[换歌:爱在西元前]
 
 【自然聊天示例】
 我来了~
@@ -388,8 +392,12 @@ export function splitAIMessages(response) {
   const musicRegexNoColon = /\[分享音乐\]\s*[\u4e00-\u9fa5a-zA-Z0-9]+(?:\s*[-–—]\s*[\u4e00-\u9fa5a-zA-Z0-9]+)?/g;
   // 表情标签 [表情:xxx]
   const stickerRegex = /\[表情[：:]\s*.+?\]/g;
-  // 撤回标签 [撤回] 或 [撤回了一条消息]
-  const recallRegex = /\[撤回(?:了一条消息)?\]/g;
+  // 撤回标签 [撤回] / [撤回了一条消息] / [撤回消息] / [撤回一条消息] / [已撤回] / [消息撤回]
+  const recallRegex = /\[(?:撤回(?:了?一条)?消息?|已撤回|消息撤回)\]/g;
+  // 红包标签 [红包:金额:祝福语] 或 [红包:金额]
+  const redPacketRegex = /\[红包[：:]\d+(?:\.\d{1,2})?(?:[：:][^\]]+)?\]/g;
+  // 转账标签 [转账:金额:说明] 或 [转账:金额]
+  const transferRegex = /\[转账[：:]\d+(?:\.\d{1,2})?(?:[：:][^\]]+)?\]/g;
 
   for (const part of parts) {
     // 【重要】检查是否是朋友圈标签 - 朋友圈标签不应该被分割，因为可能包含内嵌的 [照片:xxx]
@@ -449,6 +457,18 @@ export function splitAIMessages(response) {
     // 查找撤回标签
     const recallRegexLocal = new RegExp(recallRegex.source, 'g');
     while ((match = recallRegexLocal.exec(part)) !== null) {
+      specialTags.push({ tag: match[0], index: match.index });
+    }
+
+    // 查找红包标签
+    const redPacketRegexLocal = new RegExp(redPacketRegex.source, 'g');
+    while ((match = redPacketRegexLocal.exec(part)) !== null) {
+      specialTags.push({ tag: match[0], index: match.index });
+    }
+
+    // 查找转账标签
+    const transferRegexLocal = new RegExp(transferRegex.source, 'g');
+    while ((match = transferRegexLocal.exec(part)) !== null) {
       specialTags.push({ tag: match[0], index: match.index });
     }
 

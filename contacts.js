@@ -214,7 +214,35 @@ export function openContactSettings(contactIndex) {
 
   document.getElementById('wechat-contact-api-url').value = contact.customApiUrl || '';
   document.getElementById('wechat-contact-api-key').value = contact.customApiKey || '';
-  document.getElementById('wechat-contact-model').value = contact.customModel || '';
+
+  // 填充模型值到下拉列表或输入框
+  const modelSelect = document.getElementById('wechat-contact-model-select');
+  const modelInput = document.getElementById('wechat-contact-model-input');
+  const selectWrapper = document.getElementById('wechat-contact-model-select-wrapper');
+  const inputWrapper = document.getElementById('wechat-contact-model-input-wrapper');
+  const customModel = contact.customModel || '';
+
+  if (customModel && modelSelect) {
+    // 检查是否在下拉列表中存在
+    const existingOption = Array.from(modelSelect.options).find(opt => opt.value === customModel);
+    if (existingOption) {
+      modelSelect.value = customModel;
+    } else {
+      // 添加为新选项并选中
+      const newOption = document.createElement('option');
+      newOption.value = customModel;
+      newOption.textContent = customModel;
+      modelSelect.appendChild(newOption);
+      modelSelect.value = customModel;
+    }
+  } else if (modelSelect) {
+    modelSelect.value = '';
+  }
+  if (modelInput) modelInput.value = customModel;
+
+  // 重置为下拉列表模式
+  if (selectWrapper) selectWrapper.style.display = 'flex';
+  if (inputWrapper) inputWrapper.style.display = 'none';
 
   // 填充哈基米破限
   const hakimiToggle = document.getElementById('wechat-contact-hakimi-toggle');
@@ -238,7 +266,13 @@ export function saveContactSettings() {
   contact.useCustomApi = document.getElementById('wechat-contact-custom-api-toggle')?.classList.contains('on') || false;
   contact.customApiUrl = document.getElementById('wechat-contact-api-url')?.value?.trim() || '';
   contact.customApiKey = document.getElementById('wechat-contact-api-key')?.value?.trim() || '';
-  contact.customModel = document.getElementById('wechat-contact-model')?.value?.trim() || '';
+
+  // 获取模型值：优先从输入框获取（手动模式），其次从下拉列表获取
+  const inputWrapper = document.getElementById('wechat-contact-model-input-wrapper');
+  const isManualMode = inputWrapper?.style.display === 'flex';
+  contact.customModel = isManualMode
+    ? (document.getElementById('wechat-contact-model-input')?.value?.trim() || '')
+    : (document.getElementById('wechat-contact-model-select')?.value?.trim() || '');
 
   // 保存哈基米破限
   contact.customHakimiBreakLimit = document.getElementById('wechat-contact-hakimi-toggle')?.classList.contains('on') || false;

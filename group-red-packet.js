@@ -529,8 +529,12 @@ export function handleGroupPasswordInput(key) {
     const settings = getSettings();
     const correctPassword = settings.paymentPassword || '666666';
     if (password === correctPassword) {
+      // 先执行操作，再隐藏弹窗（hideGroupPasswordModal 会清空 pendingGroupAction）
+      const action = pendingGroupAction;
       hideGroupPasswordModal();
-      executeGroupAction();
+      if (action) {
+        executeGroupActionWithData(action);
+      }
     } else {
       showToast('密码错误', 'info');
       modal.dataset.password = '';
@@ -540,12 +544,12 @@ export function handleGroupPasswordInput(key) {
 }
 
 /**
- * 执行群聊操作
+ * 执行群聊操作（带参数版本）
  */
-async function executeGroupAction() {
-  if (!pendingGroupAction) return;
+async function executeGroupActionWithData(action) {
+  if (!action) return;
 
-  const actionType = pendingGroupAction.type;
+  const actionType = action.type;
 
   if (actionType === 'random-rp') {
     await sendGroupRandomRedPacket();
@@ -554,18 +558,63 @@ async function executeGroupAction() {
   } else if (actionType === 'transfer') {
     await sendGroupTransfer();
   }
+}
 
+/**
+ * 执行群聊操作（保留原函数兼容性）
+ */
+async function executeGroupAction() {
+  await executeGroupActionWithData(pendingGroupAction);
   pendingGroupAction = null;
 }
 
 // ============ 发送群红包 ============
 
 /**
+ * 更新拼手气红包总金额显示
+ */
+function updateGroupRandomRedPacketTotal() {
+  const amountInput = document.getElementById('wechat-group-rp-amount-input');
+  const amount = parseFloat(amountInput?.value) || 0;
+  const totalEl = document.getElementById('wechat-group-rp-total-display');
+  if (totalEl) {
+    totalEl.textContent = '¥' + amount.toFixed(2);
+  }
+}
+
+/**
+ * 更新指定成员红包总金额显示
+ */
+function updateGroupDesignatedRedPacketTotal() {
+  const amountInput = document.getElementById('wechat-group-designated-amount-input');
+  const amount = parseFloat(amountInput?.value) || 0;
+  const count = groupRedPacketSelectedMembers.length;
+  const totalEl = document.getElementById('wechat-group-designated-total-display');
+  if (totalEl) {
+    totalEl.textContent = '¥' + (amount * count).toFixed(2);
+  }
+}
+
+/**
+ * 更新群转账总金额显示
+ */
+function updateGroupTransferAmountTotal() {
+  const amountInput = document.getElementById('wechat-group-transfer-amount-input');
+  const amount = parseFloat(amountInput?.value) || 0;
+  const displayEl = document.getElementById('wechat-group-transfer-amount-display');
+  if (displayEl) {
+    displayEl.textContent = '¥' + amount.toFixed(2);
+  }
+}
+
+/**
  * 提交拼手气红包（显示密码输入）
  */
 export function submitGroupRandomRedPacket() {
-  const amount = parseFloat(groupRedPacketAmount) || 0;
-  const count = parseInt(groupRedPacketCount) || 0;
+  const amountInput = document.getElementById('wechat-group-rp-amount-input');
+  const countInput = document.getElementById('wechat-group-rp-count-input');
+  const amount = parseFloat(amountInput?.value) || 0;
+  const count = parseInt(countInput?.value) || 0;
 
   if (amount <= 0) {
     showToast('请输入红包金额', 'info');
@@ -583,6 +632,10 @@ export function submitGroupRandomRedPacket() {
     showToast('余额不足', 'info');
     return;
   }
+
+  // 保存到状态变量供后续使用
+  groupRedPacketAmount = amount.toString();
+  groupRedPacketCount = count.toString();
 
   // 获取祝福语
   const messageInput = document.getElementById('wechat-group-rp-message');
@@ -658,7 +711,8 @@ async function sendGroupRandomRedPacket() {
  * 提交指定成员红包（显示密码输入）
  */
 export function submitGroupDesignatedRedPacket() {
-  const amount = parseFloat(groupRedPacketAmount) || 0;
+  const amountInput = document.getElementById('wechat-group-designated-amount-input');
+  const amount = parseFloat(amountInput?.value) || 0;
   const count = groupRedPacketSelectedMembers.length;
 
   if (amount <= 0) {
@@ -679,6 +733,9 @@ export function submitGroupDesignatedRedPacket() {
     showToast('余额不足', 'info');
     return;
   }
+
+  // 保存到状态变量供后续使用
+  groupRedPacketAmount = amount.toString();
 
   // 获取祝福语
   const messageInput = document.getElementById('wechat-group-designated-message');
@@ -765,7 +822,8 @@ async function sendGroupDesignatedRedPacket() {
  * 提交群转账（显示密码输入）
  */
 export function submitGroupTransfer() {
-  const amount = parseFloat(groupTransferAmount) || 0;
+  const amountInput = document.getElementById('wechat-group-transfer-amount-input');
+  const amount = parseFloat(amountInput?.value) || 0;
 
   if (amount <= 0) {
     showToast('请输入转账金额', 'info');
@@ -775,6 +833,9 @@ export function submitGroupTransfer() {
     showToast('余额不足', 'info');
     return;
   }
+
+  // 保存到状态变量供后续使用
+  groupTransferAmount = amount.toString();
 
   // 获取转账说明
   const descInput = document.getElementById('wechat-group-transfer-description');
@@ -878,9 +939,6 @@ async function processAIClaimGroupRedPacket(rpInfo, groupChat, members) {
       // 更新界面
       updateGroupRedPacketBubbleStatus(rpInfo.id);
 
-      // 显示领取提示
-      appendGroupRedPacketClaimNotice(member.name, settings.userName || 'User');
-
       // AI 感谢消息
       await sleep(800 + Math.random() * 500);
       showGroupTypingIndicator(member.name, member.id);
@@ -929,9 +987,6 @@ async function processAIClaimGroupRedPacket(rpInfo, groupChat, members) {
 
       // 更新界面
       updateGroupRedPacketBubbleStatus(rpInfo.id);
-
-      // 显示领取提示
-      appendGroupRedPacketClaimNotice(member.name, settings.userName || 'User');
 
       // AI 感谢消息
       await sleep(800 + Math.random() * 500);
@@ -1027,7 +1082,7 @@ async function generateAIThankMessage(member, rpInfo, claimAmount) {
 
   try {
     const systemPrompt = buildSystemPrompt(member, { allowStickers: false, allowMusicShare: false, allowCallRequests: false });
-    const userPrompt = `用户给群里发了一个${rpInfo.totalAmount}元的红包，祝福语是"${rpInfo.message}"。你抢到了${claimAmount.toFixed(2)}元，请自然地表示感谢，不要使用任何特殊格式标签。回复要简短自然（10字以内）。`;
+    const userPrompt = `用户给群里发了一个${rpInfo.totalAmount}元的红包，祝福语是"${rpInfo.message}"。你抢到了${claimAmount.toFixed(2)}元。请根据你的性格自然地回应这件事，不要使用任何特殊格式标签，直接输出对话内容。`;
 
     const chatUrl = member.customApiUrl.replace(/\/+$/, '') + '/chat/completions';
     const headers = { 'Content-Type': 'application/json' };
@@ -1078,8 +1133,8 @@ async function generateAITransferThankMessage(member, tfInfo) {
   try {
     const systemPrompt = buildSystemPrompt(member, { allowStickers: false, allowMusicShare: false, allowCallRequests: false });
     const userPrompt = tfInfo.description
-      ? `用户给你转账了${tfInfo.amount}元，备注是"${tfInfo.description}"，请自然地表示感谢，不要使用任何特殊格式标签。回复要简短自然（10字以内）。`
-      : `用户给你转账了${tfInfo.amount}元，请自然地表示感谢，不要使用任何特殊格式标签。回复要简短自然（10字以内）。`;
+      ? `用户给你转账了${tfInfo.amount}元，备注是"${tfInfo.description}"。请根据你的性格自然地回应这件事，不要使用任何特殊格式标签，直接输出对话内容。`
+      : `用户给你转账了${tfInfo.amount}元。请根据你的性格自然地回应这件事，不要使用任何特殊格式标签，直接输出对话内容。`;
 
     const chatUrl = member.customApiUrl.replace(/\/+$/, '') + '/chat/completions';
     const headers = { 'Content-Type': 'application/json' };
@@ -1439,13 +1494,13 @@ export function createGroupRedPacketPages() {
         <span class="wechat-page-title">发拼手气红包</span>
       </div>
       <div class="wechat-group-rp-form">
-        <div class="wechat-group-rp-row" id="wechat-group-rp-amount-row">
+        <div class="wechat-group-rp-row">
           <span class="wechat-group-rp-label">总金额</span>
-          <span class="wechat-group-rp-value">¥<span id="wechat-group-rp-amount-value">0.00</span></span>
+          <span class="wechat-group-rp-value">¥<input type="number" id="wechat-group-rp-amount-input" class="wechat-group-rp-number-input" placeholder="0.00" step="0.01" min="0.01" max="200"></span>
         </div>
-        <div class="wechat-group-rp-row" id="wechat-group-rp-count-row">
+        <div class="wechat-group-rp-row">
           <span class="wechat-group-rp-label">红包个数</span>
-          <span class="wechat-group-rp-value"><span id="wechat-group-rp-count-value">0</span>个</span>
+          <span class="wechat-group-rp-value"><input type="number" id="wechat-group-rp-count-input" class="wechat-group-rp-number-input" placeholder="0" step="1" min="1" max="99">个</span>
         </div>
         <div class="wechat-group-rp-row">
           <input type="text" class="wechat-group-rp-message-input" id="wechat-group-rp-message" placeholder="恭喜发财，大吉大利" maxlength="20">
@@ -1454,31 +1509,6 @@ export function createGroupRedPacketPages() {
           <span id="wechat-group-rp-total-display">¥0.00</span>
         </div>
         <button class="wechat-btn wechat-btn-primary wechat-group-rp-submit" id="wechat-group-random-rp-submit">塞钱进红包</button>
-      </div>
-      <div class="wechat-rp-keyboard hidden" id="wechat-group-rp-keyboard">
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key="1">1</button>
-          <button class="wechat-rp-keyboard-key" data-key="2">2</button>
-          <button class="wechat-rp-keyboard-key" data-key="3">3</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key="4">4</button>
-          <button class="wechat-rp-keyboard-key" data-key="5">5</button>
-          <button class="wechat-rp-keyboard-key" data-key="6">6</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key="7">7</button>
-          <button class="wechat-rp-keyboard-key" data-key="8">8</button>
-          <button class="wechat-rp-keyboard-key" data-key="9">9</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key=".">.</button>
-          <button class="wechat-rp-keyboard-key" data-key="0">0</button>
-          <button class="wechat-rp-keyboard-key" data-key="backspace">⌫</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key wechat-rp-keyboard-confirm" data-key="confirm">确定</button>
-        </div>
       </div>
     </div>
 
@@ -1496,9 +1526,9 @@ export function createGroupRedPacketPages() {
           <div class="wechat-group-designated-member-list" id="wechat-group-designated-member-list"></div>
         </div>
         <div class="wechat-group-rp-form">
-          <div class="wechat-group-rp-row" id="wechat-group-designated-amount-row">
+          <div class="wechat-group-rp-row">
             <span class="wechat-group-rp-label">每人金额</span>
-            <span class="wechat-group-rp-value">¥<span id="wechat-group-designated-amount-value">0.00</span></span>
+            <span class="wechat-group-rp-value">¥<input type="number" id="wechat-group-designated-amount-input" class="wechat-group-rp-number-input" placeholder="0.00" step="0.01" min="0.01" max="200"></span>
           </div>
           <div class="wechat-group-rp-row">
             <input type="text" class="wechat-group-rp-message-input" id="wechat-group-designated-message" placeholder="恭喜发财，大吉大利" maxlength="20">
@@ -1507,31 +1537,6 @@ export function createGroupRedPacketPages() {
             <span id="wechat-group-designated-total-display">¥0.00</span>
           </div>
           <button class="wechat-btn wechat-btn-primary wechat-group-rp-submit" id="wechat-group-designated-rp-submit">塞钱进红包</button>
-        </div>
-      </div>
-      <div class="wechat-rp-keyboard hidden" id="wechat-group-designated-keyboard">
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key="1">1</button>
-          <button class="wechat-rp-keyboard-key" data-key="2">2</button>
-          <button class="wechat-rp-keyboard-key" data-key="3">3</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key="4">4</button>
-          <button class="wechat-rp-keyboard-key" data-key="5">5</button>
-          <button class="wechat-rp-keyboard-key" data-key="6">6</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key="7">7</button>
-          <button class="wechat-rp-keyboard-key" data-key="8">8</button>
-          <button class="wechat-rp-keyboard-key" data-key="9">9</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key=".">.</button>
-          <button class="wechat-rp-keyboard-key" data-key="0">0</button>
-          <button class="wechat-rp-keyboard-key" data-key="backspace">⌫</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key wechat-rp-keyboard-confirm" data-key="confirm">确定</button>
         </div>
       </div>
     </div>
@@ -1556,9 +1561,9 @@ export function createGroupRedPacketPages() {
         <span class="wechat-page-title" id="wechat-group-transfer-target-name">转账</span>
       </div>
       <div class="wechat-group-rp-form">
-        <div class="wechat-group-rp-row" id="wechat-group-transfer-amount-row">
+        <div class="wechat-group-rp-row">
           <span class="wechat-group-rp-label">转账金额</span>
-          <span class="wechat-group-rp-value">¥<span id="wechat-group-transfer-amount-value">0.00</span></span>
+          <span class="wechat-group-rp-value">¥<input type="number" id="wechat-group-transfer-amount-input" class="wechat-group-rp-number-input" placeholder="0.00" step="0.01" min="0.01"></span>
         </div>
         <div class="wechat-group-rp-row">
           <input type="text" class="wechat-group-rp-message-input" id="wechat-group-transfer-description" placeholder="添加转账说明（可选）" maxlength="20">
@@ -1566,32 +1571,7 @@ export function createGroupRedPacketPages() {
         <div class="wechat-group-rp-total">
           <span id="wechat-group-transfer-amount-display">¥0.00</span>
         </div>
-        <button class="wechat-btn wechat-btn-primary wechat-group-rp-submit" id="wechat-group-transfer-submit">转账</button>
-      </div>
-      <div class="wechat-rp-keyboard hidden" id="wechat-group-transfer-keyboard">
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key="1">1</button>
-          <button class="wechat-rp-keyboard-key" data-key="2">2</button>
-          <button class="wechat-rp-keyboard-key" data-key="3">3</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key="4">4</button>
-          <button class="wechat-rp-keyboard-key" data-key="5">5</button>
-          <button class="wechat-rp-keyboard-key" data-key="6">6</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key="7">7</button>
-          <button class="wechat-rp-keyboard-key" data-key="8">8</button>
-          <button class="wechat-rp-keyboard-key" data-key="9">9</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key" data-key=".">.</button>
-          <button class="wechat-rp-keyboard-key" data-key="0">0</button>
-          <button class="wechat-rp-keyboard-key" data-key="backspace">⌫</button>
-        </div>
-        <div class="wechat-rp-keyboard-row">
-          <button class="wechat-rp-keyboard-key wechat-rp-keyboard-confirm" data-key="confirm">确定</button>
-        </div>
+        <button class="wechat-btn wechat-group-transfer-submit-btn" id="wechat-group-transfer-submit">转账</button>
       </div>
     </div>
 
@@ -1670,43 +1650,28 @@ function bindGroupRedPacketEvents() {
 
   // 拼手气红包页面
   document.getElementById('wechat-group-random-rp-back')?.addEventListener('click', hideGroupRandomRedPacketPage);
-  document.getElementById('wechat-group-rp-amount-row')?.addEventListener('click', () => showGroupKeyboard('random-amount'));
-  document.getElementById('wechat-group-rp-count-row')?.addEventListener('click', () => showGroupKeyboard('random-count'));
   document.getElementById('wechat-group-random-rp-submit')?.addEventListener('click', submitGroupRandomRedPacket);
 
-  // 拼手气红包键盘
-  document.querySelectorAll('#wechat-group-rp-keyboard .wechat-rp-keyboard-key').forEach(key => {
-    key.addEventListener('click', () => {
-      handleGroupKeyboardInput(key.dataset.key);
-    });
-  });
+  // 拼手气红包金额输入监听
+  document.getElementById('wechat-group-rp-amount-input')?.addEventListener('input', updateGroupRandomRedPacketTotal);
+  document.getElementById('wechat-group-rp-count-input')?.addEventListener('input', updateGroupRandomRedPacketTotal);
 
   // 指定成员红包页面
   document.getElementById('wechat-group-designated-rp-back')?.addEventListener('click', hideGroupDesignatedRedPacketPage);
-  document.getElementById('wechat-group-designated-amount-row')?.addEventListener('click', () => showGroupKeyboard('designated-amount'));
   document.getElementById('wechat-group-designated-rp-submit')?.addEventListener('click', submitGroupDesignatedRedPacket);
 
-  // 指定成员红包键盘
-  document.querySelectorAll('#wechat-group-designated-keyboard .wechat-rp-keyboard-key').forEach(key => {
-    key.addEventListener('click', () => {
-      handleGroupKeyboardInput(key.dataset.key);
-    });
-  });
+  // 指定成员红包金额输入监听
+  document.getElementById('wechat-group-designated-amount-input')?.addEventListener('input', updateGroupDesignatedRedPacketTotal);
 
   // 群转账成员选择页面
   document.getElementById('wechat-group-transfer-select-back')?.addEventListener('click', hideGroupTransferSelectPage);
 
   // 群转账金额输入页面
   document.getElementById('wechat-group-transfer-amount-back')?.addEventListener('click', hideGroupTransferAmountPage);
-  document.getElementById('wechat-group-transfer-amount-row')?.addEventListener('click', () => showGroupKeyboard('transfer-amount'));
   document.getElementById('wechat-group-transfer-submit')?.addEventListener('click', submitGroupTransfer);
 
-  // 群转账键盘
-  document.querySelectorAll('#wechat-group-transfer-keyboard .wechat-rp-keyboard-key').forEach(key => {
-    key.addEventListener('click', () => {
-      handleGroupKeyboardInput(key.dataset.key);
-    });
-  });
+  // 群转账金额输入监听
+  document.getElementById('wechat-group-transfer-amount-input')?.addEventListener('input', updateGroupTransferAmountTotal);
 
   // 群红包详情页面
   document.getElementById('wechat-group-rp-detail-back')?.addEventListener('click', hideGroupRedPacketDetail);

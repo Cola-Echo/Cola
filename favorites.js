@@ -347,7 +347,9 @@ function showNewPersonaModal() {
     </div>
   `;
 
-  document.body.appendChild(modal);
+  // 添加到手机容器内，确保居中显示
+  const phoneContainer = document.querySelector('.wechat-phone') || document.body;
+  phoneContainer.appendChild(modal);
 
   // 关闭
   modal.querySelector('#wechat-persona-close').addEventListener('click', () => modal.remove());
@@ -905,7 +907,9 @@ export function showAddLorebookPanel() {
     </div>
   `;
 
-  document.body.appendChild(modal);
+  // 添加到手机容器内，确保居中显示
+  const phoneContainer = document.querySelector('.wechat-phone') || document.body;
+  phoneContainer.appendChild(modal);
 
   // 关闭按钮
   modal.querySelector('#wechat-lorebook-modal-close').addEventListener('click', () => modal.remove());
@@ -953,7 +957,9 @@ export function showAddPersonaPanel() {
     </div>
   `;
 
-  document.body.appendChild(modal);
+  // 添加到手机容器内，确保居中显示
+  const phoneContainer = document.querySelector('.wechat-phone') || document.body;
+  phoneContainer.appendChild(modal);
 
   // 关闭按钮
   modal.querySelector('#wechat-persona-modal-close').addEventListener('click', () => modal.remove());
