@@ -14,6 +14,9 @@ let pendingAvatarContactIndex = -1;
 // 当前编辑的联系人索引
 let currentEditingContactIndex = -1;
 
+// 弹窗打开时间（用于防止点击穿透）
+let contactSettingsOpenTime = 0;
+
 // 添加联系人
 export function addContact(characterData) {
   const settings = getSettings();
@@ -183,6 +186,9 @@ export function openContactSettings(contactIndex) {
 
   currentEditingContactIndex = contactIndex;
 
+  // 记录打开时间，用于防止点击穿透
+  contactSettingsOpenTime = Date.now();
+
   // 填充头像和名称
   const avatarPreview = document.getElementById('wechat-contact-avatar-preview');
   const nameEl = document.getElementById('wechat-contact-settings-name');
@@ -257,6 +263,11 @@ export function openContactSettings(contactIndex) {
 // 保存角色设置
 export function saveContactSettings() {
   if (currentEditingContactIndex < 0) return;
+
+  // 防止点击穿透：如果弹窗刚打开（300ms内），忽略保存操作
+  if (Date.now() - contactSettingsOpenTime < 300) {
+    return;
+  }
 
   const settings = getSettings();
   const contact = settings.contacts[currentEditingContactIndex];

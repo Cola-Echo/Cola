@@ -155,35 +155,45 @@ async function handleBlockedExclamationClick(contact, exclamationEl) {
   await triggerAIAfterUnblock(contact);
 }
 
-// 显示"已添加好友"的手机弹窗
+// 显示"已添加好友"的仿手机弹窗
 function showFriendAddedPopup(name) {
-  // 创建弹窗遮罩
-  const overlay = document.createElement('div');
-  overlay.className = 'wechat-phone-popup-overlay';
-  overlay.innerHTML = `
-    <div class="wechat-phone-popup">
-      <div class="wechat-phone-popup-icon">
-        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#07c160" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M8 12l2.5 2.5L16 9"/>
-        </svg>
+  // 获取手机容器
+  const phoneContainer = document.querySelector('.wechat-phone');
+  if (!phoneContainer) return;
+
+  // 创建仿手机弹窗（使用与其他弹窗一致的 wechat-modal 样式）
+  const modal = document.createElement('div');
+  modal.className = 'wechat-modal';
+  modal.id = 'wechat-friend-added-modal';
+  modal.innerHTML = `
+    <div class="wechat-modal-content">
+      <div class="wechat-modal-title">添加好友成功</div>
+      <div class="wechat-modal-body">
+        <div style="margin-bottom: 12px;">
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#07c160" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M8 12l2.5 2.5L16 9"/>
+          </svg>
+        </div>
+        ${escapeHtml(name)}已添加您为好友，现在可以开始聊天了。
       </div>
-      <div class="wechat-phone-popup-text">${escapeHtml(name)}已添加您为好友，现在可以开始聊天了。</div>
-      <div class="wechat-phone-popup-btn">确定</div>
+      <div class="wechat-modal-actions">
+        <button class="wechat-btn wechat-btn-primary" id="wechat-friend-added-confirm">确定</button>
+      </div>
     </div>
   `;
 
-  document.body.appendChild(overlay);
+  phoneContainer.appendChild(modal);
 
   // 点击确定关闭
-  overlay.querySelector('.wechat-phone-popup-btn').addEventListener('click', () => {
-    overlay.remove();
+  modal.querySelector('#wechat-friend-added-confirm').addEventListener('click', () => {
+    modal.remove();
   });
 
   // 点击遮罩也关闭
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      overlay.remove();
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
     }
   });
 }
@@ -862,7 +872,7 @@ export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
       const isTimeout = callInfo === '对方已取消';
 
       // 线条电话图标
-      const phoneIconSVG = `<svg class="wechat-call-record-icon" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      const phoneIconSVG = `<svg class="wechat-call-record-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
       </svg>`;
 
@@ -871,16 +881,16 @@ export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
         // 已接通：显示通话时长
         callRecordHTML = `
           <div class="wechat-call-record">
-            <span class="wechat-call-record-text">通话时长 ${callInfo}</span>
             ${phoneIconSVG}
+            <span class="wechat-call-record-text">通话时长 ${callInfo}</span>
           </div>
         `;
       } else if (isCancelled) {
         // 用户发起未接通：已取消
         callRecordHTML = `
           <div class="wechat-call-record">
-            <span class="wechat-call-record-text">已取消</span>
             ${phoneIconSVG}
+            <span class="wechat-call-record-text">已取消</span>
           </div>
         `;
       } else if (isRejected) {
@@ -903,8 +913,8 @@ export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
         // 兜底：显示原始内容
         callRecordHTML = `
           <div class="wechat-call-record">
-            <span class="wechat-call-record-text">${escapeHtml(callInfo)}</span>
             ${phoneIconSVG}
+            <span class="wechat-call-record-text">${escapeHtml(callInfo)}</span>
           </div>
         `;
       }
@@ -928,7 +938,7 @@ export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
       const isTimeout = callInfo === '对方已取消';
 
       // 摄像机图标
-      const cameraIconSVG = `<svg class="wechat-call-record-icon wechat-video-call-icon" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      const cameraIconSVG = `<svg class="wechat-call-record-icon wechat-video-call-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="6" width="13" height="12" rx="2"/>
         <path d="M22 8l-7 4 7 4V8z"/>
       </svg>`;

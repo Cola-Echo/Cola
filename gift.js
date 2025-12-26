@@ -349,8 +349,8 @@ export function checkGiftDelivery(contact) {
   const currentCount = contact.chatHistory?.length || 0;
 
   for (const gift of contact.pendingGifts) {
-    // 如果正在使用中，跳过
-    if (gift.isUsing) continue;
+    // 如果正在使用中或已完成，跳过
+    if (gift.isUsing || gift.completed) continue;
 
     // 首次送达检测
     if (!gift.isDelivered && currentCount >= gift.startMessageCount + 25) {
@@ -414,6 +414,10 @@ export function showGiftArrivalModal(gift, contact) {
     modal.classList.add('hidden');
     yesBtn.removeEventListener('click', handleYes);
     noBtn.removeEventListener('click', handleNo);
+
+    // 标记礼物为已完成，防止重复触发弹窗
+    gift.completed = true;
+    requestSave();
 
     // 打开玩具控制界面
     const { showToyControlPage } = await import('./toy-control.js');

@@ -852,3 +852,106 @@ export async function rollbackSummary() {
     }
   }
 }
+
+/**
+ * 从酒馆世界书恢复总结数据
+ * 当插件的 selectedLorebooks 条目丢失但酒馆世界书还在时使用
+ */
+export async function recoverFromTavernWorldbook() {
+  const settings = getSettings();
+  const selectedLorebooks = settings.selectedLorebooks || [];
+
+  // 找到所有总结生成的世界书（条目为空的）
+  const emptyBooks = selectedLorebooks.filter(lb =>
+    (lb.fromSummary === true || (lb.name && lb.name.startsWith(LOREBOOK_NAME_PREFIX))) &&
+    (!lb.entries || lb.entries.length === 0)
+  );
+
+  if (emptyBooks.length === 0) {
+    alert('没有需要恢复的世界书（所有世界书都有条目，或没有总结类世界书）');
+    return;
+  }
+
+  const options = emptyBooks.map((lb, idx) => `${idx + 1}. ${lb.name}`).join('\n');
+  const choice = prompt(`以下世界书条目为空，可尝试从酒馆恢复：\n\n${options}\n\n输入序号（或输入 all 恢复全部）:`);
+
+  if (!choice) return;
+
+  const booksToRecover = choice.toLowerCase() === 'all'
+    ? emptyBooks
+    : [emptyBooks[parseInt(choice) - 1]].filter(Boolean);
+
+  if (booksToRecover.length === 0) {
+    alert('无效的选择');
+    return;
+  }
+
+  let recoveredCount = 0;
+  let totalEntries = 0;
+
+  for (const book of booksToRecover) {
+    try {
+      const name = book.name;
+
+      // 检查酒馆世界书是否存在
+      const worldExists = typeof world_names !== 'undefined' &&
+                          Array.isArray(world_names) &&
+                          world_names.includes(name);
+
+      if (!worldExists) {
+        console.log(`[可乐] 酒馆中不存在世界书: ${name}`);
+        continue;
+      }
+
+      // 加载酒馆世界书
+      if (typeof loadWorldInfo !== 'function') {
+        console.error('[可乐] loadWorldInfo 函数不可用');
+        continue;
+      }
+
+      const worldInfo = await loadWorldInfo(name);
+      if (!worldInfo?.entries || Object.keys(worldInfo.entries).length === 0) {
+        console.log(`[可乐] 酒馆世界书 ${name} 没有条目`);
+        continue;
+      }
+
+      // 将酒馆条目转换为插件格式
+      const entries = [];
+      const sortedKeys = Object.keys(worldInfo.entries).sort((a, b) => parseInt(a) - parseInt(b));
+
+      for (const key of sortedKeys) {
+        const tavernEntry = worldInfo.entries[key];
+        if (!tavernEntry) continue;
+
+        entries.push({
+          content: tavernEntry.content || '',
+          comment: tavernEntry.comment || getCupName(entries.length + 1),
+          keys: tavernEntry.key || [],
+          enabled: !tavernEntry.disable,
+          addedTime: new Date().toISOString()
+        });
+      }
+
+      if (entries.length > 0) {
+        // 更新插件的 selectedLorebooks
+        const bookIndex = selectedLorebooks.findIndex(lb => lb.name === name);
+        if (bookIndex >= 0) {
+          selectedLorebooks[bookIndex].entries = entries;
+          selectedLorebooks[bookIndex].lastUpdated = new Date().toISOString();
+          recoveredCount++;
+          totalEntries += entries.length;
+          console.log(`[可乐] 已恢复 ${name}: ${entries.length} 条`);
+        }
+      }
+    } catch (err) {
+      console.error(`[可乐] 恢复 ${book.name} 失败:`, err);
+    }
+  }
+
+  if (recoveredCount > 0) {
+    requestSave();
+    alert(`恢复完成！\n\n已恢复 ${recoveredCount} 个世界书，共 ${totalEntries} 条总结。\n\n请刷新页面查看。`);
+  } else {
+    alert('恢复失败：酒馆中没有找到对应的世界书数据。\n\n数据可能已彻底丢失。');
+  }
+}

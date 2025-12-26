@@ -19,7 +19,7 @@ export function generatePhoneHTML() {
       <!-- 状态栏 -->
       <div class="wechat-statusbar">
         <span class="wechat-statusbar-time">${getCurrentTime()}</span>
-        <div class="wechat-statusbar-icons">
+        <div class="wechat-statusbar-icons" id="wechat-minimize-btn" title="缩小窗口">
           <svg viewBox="0 0 24 24" width="18" height="18"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z" fill="currentColor"/></svg>
           <svg viewBox="0 0 24 24" width="22" height="22"><rect x="2" y="6" width="18" height="12" rx="2" ry="2" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="20" y="10" width="2" height="4" fill="currentColor"/><rect x="4" y="8" width="12" height="8" rx="1" fill="currentColor"/></svg>
         </div>
@@ -113,6 +113,10 @@ export function generatePhoneHTML() {
         <div class="wechat-dropdown-item" id="wechat-menu-pay">
           <svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
           <span>收付款</span>
+        </div>
+        <div class="wechat-dropdown-item" id="wechat-menu-floating-ball">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M7 16.5c0-2 2.2-3.5 5-3.5s5 1.5 5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+          <span id="wechat-floating-ball-text">悬浮窗</span>
         </div>
       </div>
 

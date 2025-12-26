@@ -15,7 +15,7 @@ import { ICON_SUCCESS, ICON_INFO } from './icons.js';
 import { addContact, refreshContactsList, openContactSettings, saveContactSettings, closeContactSettings, changeContactAvatar, getCurrentEditingContactIndex } from './contacts.js';
 import { openChatByContactId, setCurrentChatIndex, sendMessage, showRecalledMessages, currentChatIndex, openChat, updateBlockMenuText, startBlockedAIMessages, stopBlockedAIMessages, showBlockedMessages } from './chat.js';
 import { refreshFavoritesList, showLorebookModal, syncCharacterBookToTavern, showAddLorebookPanel, showAddPersonaPanel } from './favorites.js';
-import { executeSummary, rollbackSummary, refreshSummaryChatList, selectAllSummaryChats } from './summary.js';
+import { executeSummary, rollbackSummary, refreshSummaryChatList, selectAllSummaryChats, recoverFromTavernWorldbook } from './summary.js';
 import { fetchModelListFromApi } from './ai.js';
 
 import { extractCharacterFromPNG, extractCharacterFromJSON, importCharacterToST } from './character-import.js';
@@ -36,6 +36,7 @@ import { initTransferEvents } from './transfer.js';
 import { initGroupRedPacket } from './group-red-packet.js';
 import { initGiftEvents } from './gift.js';
 import { initCropper } from './cropper.js';
+import { createFloatingBall, showFloatingBall, hideFloatingBall } from './floating-ball.js';
 
 // ========== 历史记录功能 ==========
 let currentHistoryTab = 'listen';
@@ -119,6 +120,14 @@ function renderHistoryContent(contact, tabType) {
     renderToyHistory(contact);
     // 绑定心动瞬间的删除按钮事件
     contentEl.querySelectorAll('.wechat-history-delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const index = parseInt(btn.dataset.index);
+        deleteHistoryRecord('toy', index);
+      });
+    });
+    // 绑定标签内的叉叉按钮事件
+    contentEl.querySelectorAll('.wechat-toy-target-close-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const index = parseInt(btn.dataset.index);
@@ -331,7 +340,241 @@ function updateWalletAmountDisplay() {
   amountEl.textContent = amount.startsWith('￥') ? amount : `￥${amount}`;
 }
 
+// ===== 缩小/恢复手机功能 =====
+let minimizeState = {
+  isDragging: false,
+  startX: 0,
+  startY: 0,
+  initialLeft: 0,
+  initialTop: 0,
+  hasMoved: false
+};
+
+// 悬浮窗开关
+function toggleFloatingBallEnabled() {
+  const settings = getSettings();
+  const isEnabled = settings.floatingBallEnabled !== false;
+
+  if (isEnabled) {
+    // 关闭悬浮窗
+    settings.floatingBallEnabled = false;
+    hideFloatingBall();
+    updateFloatingBallMenuText(false);
+  } else {
+    // 开启悬浮窗
+    settings.floatingBallEnabled = true;
+    // 只有非缩小状态才显示
+    const phone = document.getElementById('wechat-phone');
+    if (!phone?.classList.contains('minimized')) {
+      showFloatingBall();
+    }
+    updateFloatingBallMenuText(true);
+  }
+
+  requestSave();
+}
+
+function updateFloatingBallMenuText(enabled) {
+  const textEl = document.getElementById('wechat-floating-ball-text');
+  if (textEl) {
+    textEl.textContent = enabled ? '关闭悬浮窗' : '开启悬浮窗';
+  }
+}
+
+function setupPhoneMinimize() {
+  const phone = document.getElementById('wechat-phone');
+  const minimizeBtn = document.getElementById('wechat-minimize-btn');
+
+  if (!phone || !minimizeBtn) return;
+
+  // 点击右上角图标 - 缩小 (PC)
+  minimizeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    minimizePhone();
+  });
+
+  // 移动端触摸支持
+  let minimizeBtnTouchMoved = false;
+  minimizeBtn.addEventListener('touchstart', (e) => {
+    minimizeBtnTouchMoved = false;
+  }, { passive: true });
+
+  minimizeBtn.addEventListener('touchmove', (e) => {
+    minimizeBtnTouchMoved = true;
+  }, { passive: true });
+
+  minimizeBtn.addEventListener('touchend', (e) => {
+    if (!minimizeBtnTouchMoved) {
+      e.stopPropagation();
+      e.preventDefault();
+      minimizePhone();
+    }
+  });
+
+  // 缩小后点击恢复 + 拖动支持
+  phone.addEventListener('mousedown', onMinimizedDragStart);
+  document.addEventListener('mousemove', onMinimizedDragMove);
+  document.addEventListener('mouseup', onMinimizedDragEnd);
+
+  // 触摸支持
+  phone.addEventListener('touchstart', onMinimizedDragStart, { passive: false });
+  document.addEventListener('touchmove', onMinimizedDragMove, { passive: false });
+  document.addEventListener('touchend', onMinimizedDragEnd);
+}
+
+function minimizePhone() {
+  const phone = document.getElementById('wechat-phone');
+  if (!phone) return;
+
+  // 获取当前位置
+  const rect = phone.getBoundingClientRect();
+  const settings = getSettings();
+
+  // 保存原始位置
+  if (!settings.phoneOriginalPosition) {
+    settings.phoneOriginalPosition = {
+      left: phone.style.left || rect.left + 'px',
+      top: phone.style.top || rect.top + 'px'
+    };
+  }
+
+  // 缩小后移到右下角
+  const scale = 0.25;
+  const phoneWidth = rect.width * scale;
+  const phoneHeight = rect.height * scale;
+
+  // 使用保存的缩小位置或默认右下角
+  const savedMinPos = settings.phoneMinimizedPosition;
+  let targetLeft, targetTop;
+
+  if (savedMinPos) {
+    targetLeft = savedMinPos.left;
+    targetTop = savedMinPos.top;
+  } else {
+    targetLeft = window.innerWidth - phoneWidth - 20;
+    targetTop = window.innerHeight - phoneHeight - 20;
+  }
+
+  phone.style.left = targetLeft + 'px';
+  phone.style.top = targetTop + 'px';
+  phone.style.right = 'auto';
+  phone.style.bottom = 'auto';
+
+  phone.classList.add('minimized');
+
+  // 缩小时隐藏悬浮球
+  hideFloatingBall();
+
+  requestSave();
+}
+
+function restorePhone() {
+  const phone = document.getElementById('wechat-phone');
+  if (!phone) return;
+
+  const settings = getSettings();
+
+  phone.classList.remove('minimized');
+
+  // 恢复原始位置或居中
+  if (settings.phoneOriginalPosition) {
+    phone.style.left = settings.phoneOriginalPosition.left;
+    phone.style.top = settings.phoneOriginalPosition.top;
+  }
+
+  // 恢复时根据设置显示悬浮球
+  if (settings.floatingBallEnabled !== false) {
+    showFloatingBall();
+  }
+
+  requestSave();
+}
+
+function onMinimizedDragStart(e) {
+  const phone = document.getElementById('wechat-phone');
+  if (!phone || !phone.classList.contains('minimized')) return;
+
+  minimizeState.isDragging = true;
+  minimizeState.hasMoved = false;
+
+  const rect = phone.getBoundingClientRect();
+  // 缩小状态下需要考虑缩放后的实际位置
+  minimizeState.initialLeft = parseFloat(phone.style.left) || rect.left;
+  minimizeState.initialTop = parseFloat(phone.style.top) || rect.top;
+
+  if (e.type === 'touchstart') {
+    minimizeState.startX = e.touches[0].clientX;
+    minimizeState.startY = e.touches[0].clientY;
+    e.preventDefault();
+  } else {
+    minimizeState.startX = e.clientX;
+    minimizeState.startY = e.clientY;
+  }
+
+  phone.style.transition = 'none';
+}
+
+function onMinimizedDragMove(e) {
+  if (!minimizeState.isDragging) return;
+
+  const phone = document.getElementById('wechat-phone');
+  if (!phone || !phone.classList.contains('minimized')) return;
+
+  let clientX, clientY;
+  if (e.type === 'touchmove') {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+    e.preventDefault();
+  } else {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+
+  const deltaX = clientX - minimizeState.startX;
+  const deltaY = clientY - minimizeState.startY;
+
+  if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+    minimizeState.hasMoved = true;
+  }
+
+  const newLeft = minimizeState.initialLeft + deltaX;
+  const newTop = minimizeState.initialTop + deltaY;
+
+  phone.style.left = newLeft + 'px';
+  phone.style.top = newTop + 'px';
+}
+
+function onMinimizedDragEnd(e) {
+  if (!minimizeState.isDragging) return;
+
+  const phone = document.getElementById('wechat-phone');
+  minimizeState.isDragging = false;
+
+  if (phone) {
+    phone.style.transition = '';
+  }
+
+  if (!minimizeState.hasMoved) {
+    // 没有移动，视为点击 - 恢复
+    restorePhone();
+  } else {
+    // 移动了，保存位置
+    if (phone && phone.classList.contains('minimized')) {
+      const settings = getSettings();
+      settings.phoneMinimizedPosition = {
+        left: parseFloat(phone.style.left),
+        top: parseFloat(phone.style.top)
+      };
+      requestSave();
+    }
+  }
+}
+
 function bindEvents() {
+  // ===== 缩小/恢复手机功能 =====
+  setupPhoneMinimize();
+
   // 添加按钮 - 显示下拉菜单
   document.getElementById('wechat-add-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -367,6 +610,12 @@ function bindEvents() {
     document.getElementById(id)?.addEventListener('click', () => {
       document.getElementById('wechat-dropdown-menu')?.classList.add('hidden');
     });
+  });
+
+  // 下拉菜单 - 悬浮窗开关
+  document.getElementById('wechat-menu-floating-ball')?.addEventListener('click', () => {
+    document.getElementById('wechat-dropdown-menu')?.classList.add('hidden');
+    toggleFloatingBallEnabled();
   });
 
   // ===== 群聊创建弹窗事件 =====
@@ -1330,6 +1579,9 @@ function bindEvents() {
     rollbackSummary();
   });
 
+  // 暴露恢复函数到全局，可在控制台调用: window.keleRecoverSummary()
+  window.keleRecoverSummary = recoverFromTavernWorldbook;
+
   document.getElementById('wechat-summary-close')?.addEventListener('click', () => {
     document.getElementById('wechat-summary-panel')?.classList.add('hidden');
   });
@@ -1932,6 +2184,14 @@ function init() {
 
   // 首次可见时居中
   centerPhoneInViewport({ force: true });
+
+  // 初始化悬浮球
+  createFloatingBall();
+  // 根据设置决定是否显示
+  if (settings.floatingBallEnabled === false) {
+    hideFloatingBall();
+  }
+  updateFloatingBallMenuText(settings.floatingBallEnabled !== false);
 
   console.log('✅ 可乐不加冰 已加载');
 }

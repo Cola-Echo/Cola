@@ -310,6 +310,27 @@ export function checkAIHangupAfterReply() {
   return false;
 }
 
+// 检测AI是否有挂断意图
+function detectHangupIntent(text) {
+  if (!text) return false;
+  // 常见的挂断表达
+  const hangupPatterns = [
+    /我(先)?挂了/,
+    /那我挂了/,
+    /先挂(了)?啊?/,
+    /挂了(啊|哈|呀|哦)?$/,
+    /我(要)?挂(电话|断)了/,
+    /拜拜.*挂/,
+    /挂.*拜拜/,
+    /再见.*挂/,
+    /不聊了.*挂/,
+    /不说了.*挂/,
+    /那就这样.*挂/,
+    /就这样吧.*挂/
+  ];
+  return hangupPatterns.some(pattern => pattern.test(text));
+}
+
 // AI主动挂断电话
 function aiHangup() {
   if (!callState.isConnected) return;
@@ -489,7 +510,7 @@ function appendCallRecordMessage(role, status, duration, contact) {
 
   // 通话记录卡片内容
   // 线条电话图标
-  const phoneIconSVG = `<svg class="wechat-call-record-icon" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  const phoneIconSVG = `<svg class="wechat-call-record-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
   </svg>`;
 
@@ -956,7 +977,19 @@ async function sendCallMessage() {
       }
     }
 
-    // AI回复完成后，检查是否要主动挂断（5%概率，通话30秒后生效）
+    // AI回复完成后，检查是否要主动挂断
+    // 1. 检测AI的挂断意图（如"我挂了"、"先挂了"等）
+    const fullReply = parts.join(' ');
+    if (detectHangupIntent(fullReply)) {
+      console.log('[可乐] 检测到AI挂断意图:', fullReply);
+      setTimeout(() => {
+        if (callState.isConnected) {
+          aiHangup();
+        }
+      }, 1500 + Math.random() * 1000);
+      return;
+    }
+    // 2. 随机5%概率挂断（通话30秒后生效）
     checkAIHangupAfterReply();
   } catch (err) {
     hideCallTypingIndicator();

@@ -143,6 +143,13 @@ function showListenTogetherPage() {
   const page = document.getElementById('wechat-listen-together-page');
   if (!page) return;
 
+  // 清空上次的聊天消息 DOM
+  const messagesEl = document.getElementById('wechat-listen-messages');
+  if (messagesEl) {
+    messagesEl.innerHTML = '';
+    messagesEl.classList.add('hidden');
+  }
+
   const settings = getSettings();
   const contact = listenState.contact;
   const song = listenState.currentSong;

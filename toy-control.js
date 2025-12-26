@@ -255,7 +255,7 @@ async function onButtonPress(buttonId, pressedBy = 'user') {
     hideToyTypingIndicator();
 
     if (response) {
-      processAIResponse(response);
+      await processAIResponse(response);
     }
   } catch (err) {
     hideToyTypingIndicator();
@@ -290,7 +290,7 @@ function updateButtonState(buttonId) {
 // 构建按钮按下提示词
 function buildButtonPressPrompt(buttonId, buttonName, pressedBy) {
   const isCharacterUsing = toyControlState.target === 'character';
-  const presserText = pressedBy === 'user' ? '用户' : '你自己';
+  const isAIPress = pressedBy === 'ai';
 
   const modeEffects = {
     classic: '稳定持续的震动开始了',
@@ -301,18 +301,40 @@ function buildButtonPressPrompt(buttonId, buttonName, pressedBy) {
     shock: '一阵微电流刺激瞬间传来，让人猛地一颤'
   };
 
-  let prompt = `[${presserText}按下了"${buttonName}"按钮]
+  let prompt;
+
+  if (isAIPress) {
+    // AI主动按按钮的情况
+    prompt = `[你主动按下了"${buttonName}"按钮]
 
 效果：${modeEffects[buttonId]}
 
 `;
-
-  if (isCharacterUsing) {
-    prompt += `你正在使用${toyControlState.gift.giftName}，请根据这个刺激变化做出反应。
-描述你的身体感受、情绪变化。回复要有情感细节，符合你的角色性格。`;
+    if (isCharacterUsing) {
+      prompt += `你主动切换了${toyControlState.gift.giftName}的模式，请描述你主动调整后的反应：
+- 为什么要主动切换这个模式（想要更多刺激/受不了想暂停/想换个感觉等）
+- 切换后的身体感受和情绪变化
+- 回复要有情感细节，符合你的角色性格`;
+    } else {
+      prompt += `你主动控制了用户正在使用的${toyControlState.gift.giftName}，请描述你主动操作后的感受：
+- 为什么要主动给用户切换这个模式（想折磨对方/想看对方的反应/调侃等）
+- 可以调侃、挑逗用户
+- 回复要有趣，符合你的角色性格`;
+    }
   } else {
-    prompt += `用户正在使用${toyControlState.gift.giftName}，你在观察。
+    // 用户按按钮的情况
+    prompt = `[用户按下了"${buttonName}"按钮]
+
+效果：${modeEffects[buttonId]}
+
+`;
+    if (isCharacterUsing) {
+      prompt += `你正在使用${toyControlState.gift.giftName}，请根据这个刺激变化做出反应。
+描述你的身体感受、情绪变化。回复要有情感细节，符合你的角色性格。`;
+    } else {
+      prompt += `用户正在使用${toyControlState.gift.giftName}，你在观察。
 请描述你观察到的用户可能的反应，可以调侃、鼓励或挑逗。回复要有趣，符合你的角色性格。`;
+    }
   }
 
   prompt += `
@@ -351,7 +373,7 @@ async function sendToyMessage() {
     hideToyTypingIndicator();
 
     if (response) {
-      processAIResponse(response);
+      await processAIResponse(response);
     }
   } catch (err) {
     hideToyTypingIndicator();
@@ -416,15 +438,20 @@ async function callToyAI(prompt) {
   return await callAI(toyControlState.contact, prompt, historyMessages);
 }
 
+// 辅助函数：延迟
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // 处理AI回复（检测是否有按按钮指令）
-function processAIResponse(response) {
+async function processAIResponse(response) {
   if (!response) return;
 
   // 分割多条消息
   const parts = splitAIMessages(response);
 
-  for (const part of parts) {
-    let reply = part.trim();
+  for (let i = 0; i < parts.length; i++) {
+    let reply = parts[i].trim();
 
     // 过滤特殊标签
     reply = reply.replace(/<\s*meme\s*>[\s\S]*?<\s*\/\s*meme\s*>/gi, '').trim();
@@ -440,6 +467,13 @@ function processAIResponse(response) {
       reply = reply.replace(/\[.*?\]/g, '').trim();
       reply = reply.replace(/（[^）]*）/g, '').trim();
       reply = reply.replace(/\([^)]*\)/g, '').trim();
+
+      // 如果不是第一条消息，显示typing并延迟
+      if (i > 0 && reply) {
+        showToyTypingIndicator();
+        await sleep(1500 + Math.random() * 1000); // 1.5-2.5秒延迟
+        hideToyTypingIndicator();
+      }
 
       // 添加AI消息
       if (reply) {
@@ -458,6 +492,13 @@ function processAIResponse(response) {
       reply = reply.replace(/\[.*?\]/g, '').trim();
       reply = reply.replace(/（[^）]*）/g, '').trim();
       reply = reply.replace(/\([^)]*\)/g, '').trim();
+
+      // 如果不是第一条消息，显示typing并延迟
+      if (i > 0 && reply) {
+        showToyTypingIndicator();
+        await sleep(1500 + Math.random() * 1000); // 1.5-2.5秒延迟
+        hideToyTypingIndicator();
+      }
 
       if (reply) {
         addToyMessage('ai', reply);
@@ -527,7 +568,7 @@ async function triggerToyAIGreeting() {
     hideToyTypingIndicator();
 
     if (response) {
-      processAIResponse(response);
+      await processAIResponse(response);
     }
   } catch (err) {
     hideToyTypingIndicator();

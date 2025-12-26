@@ -351,6 +351,26 @@ export function checkVideoAIHangupAfterReply() {
   return false;
 }
 
+// 检测AI是否有挂断意图
+function detectVideoHangupIntent(text) {
+  if (!text) return false;
+  const hangupPatterns = [
+    /我(先)?挂了/,
+    /那我挂了/,
+    /先挂(了)?啊?/,
+    /挂了(啊|哈|呀|哦)?$/,
+    /我(要)?挂(电话|断)了/,
+    /拜拜.*挂/,
+    /挂.*拜拜/,
+    /再见.*挂/,
+    /不聊了.*挂/,
+    /不说了.*挂/,
+    /那就这样.*挂/,
+    /就这样吧.*挂/
+  ];
+  return hangupPatterns.some(pattern => pattern.test(text));
+}
+
 // AI主动挂断视频电话
 function videoAIHangup() {
   if (!videoCallState.isConnected) return;
@@ -505,7 +525,7 @@ function appendVideoCallRecordMessage(role, status, duration, contact) {
       : firstChar);
 
   // 摄像机图标
-  const cameraIconSVG = `<svg class="wechat-call-record-icon wechat-video-call-icon" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  const cameraIconSVG = `<svg class="wechat-call-record-icon wechat-video-call-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <rect x="2" y="6" width="13" height="12" rx="2"/>
     <path d="M22 8l-7 4 7 4V8z"/>
   </svg>`;
@@ -1053,7 +1073,19 @@ async function sendVideoCallMessage() {
       }
     }
 
-    // AI回复完成后，检查是否要主动挂断（5%概率，通话30秒后生效）
+    // AI回复完成后，检查是否要主动挂断
+    // 1. 检测AI的挂断意图（如"我挂了"、"先挂了"等）
+    const fullReply = parts.join(' ');
+    if (detectVideoHangupIntent(fullReply)) {
+      console.log('[可乐] 检测到视频通话AI挂断意图:', fullReply);
+      setTimeout(() => {
+        if (videoCallState.isConnected) {
+          videoAIHangup();
+        }
+      }, 1500 + Math.random() * 1000);
+      return;
+    }
+    // 2. 随机5%概率挂断（通话30秒后生效）
     checkVideoAIHangupAfterReply();
   } catch (err) {
     hideVideoCallTypingIndicator();

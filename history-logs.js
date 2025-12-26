@@ -150,8 +150,8 @@ export function refreshHistoryList(filter = 'all') {
       <div class="wechat-history-item" data-index="${lb.originalIndex}" style="padding: 12px; border-bottom: 1px solid var(--wechat-border); cursor: pointer;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div style="flex: 1; min-width: 0;">
-            <div style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #000;">${escapeHtml(displayName)}</div>
-            <div style="font-size: 12px; color: #000;">${entriesCount} 杯总结 · ${lb.lastUpdated || lb.addedTime || '未知时间'}</div>
+            <div style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--wechat-text-primary);">${escapeHtml(displayName)}</div>
+            <div style="font-size: 12px; color: var(--wechat-text-secondary);">${entriesCount} 杯总结 · ${lb.lastUpdated || lb.addedTime || '未知时间'}</div>
           </div>
           <label class="wechat-toggle wechat-toggle-small" onclick="event.stopPropagation()">
             <input type="checkbox" class="wechat-history-toggle" data-index="${lb.originalIndex}" ${lb.enabled !== false ? 'checked' : ''}>
@@ -339,7 +339,6 @@ export function renderToyHistory(contact) {
   contentEl.innerHTML = sortedHistory.map((session, sortedIdx) => {
     const targetText = session.target === 'character' ? 'TA在用' : '你在用';
     const messages = session.messages || [];
-    const previewMessages = messages.slice(0, 5); // 只显示前5条消息预览
     const originalIndex = toyHistory.indexOf(session);
 
     return `
@@ -350,7 +349,7 @@ export function renderToyHistory(contact) {
             <span class="wechat-toy-history-card-gift-name">${escapeHtml(session.gift?.name || '未知玩具')}</span>
           </div>
           <div class="wechat-toy-history-card-actions">
-            <span class="wechat-toy-history-card-target">${targetText}</span>
+            <span class="wechat-toy-history-card-target">${targetText}<button class="wechat-toy-target-close-btn" data-tab="toy" data-index="${originalIndex}" title="删除">×</button></span>
             <button class="wechat-history-delete-btn" data-tab="toy" data-index="${originalIndex}" title="删除">×</button>
           </div>
         </div>
@@ -358,16 +357,15 @@ export function renderToyHistory(contact) {
           <span>${escapeHtml(session.time || '未知时间')}</span>
           <span>时长 ${escapeHtml(session.duration || '00:00')}</span>
         </div>
-        <div class="wechat-toy-history-card-messages">
-          ${previewMessages.length === 0 ? '<div style="color: #999; text-align: center;">暂无对话记录</div>' :
-            previewMessages.map(msg => `
+        <div class="wechat-toy-history-card-messages wechat-toy-history-scrollable">
+          ${messages.length === 0 ? '<div style="color: #999; text-align: center;">暂无对话记录</div>' :
+            messages.map(msg => `
               <div class="wechat-toy-history-msg">
                 <span class="wechat-toy-history-msg-sender ${msg.role === 'user' ? 'user' : 'ai'}">${msg.role === 'user' ? '你' : 'TA'}:</span>
-                <span class="wechat-toy-history-msg-content">${escapeHtml((msg.content || '').substring(0, 50))}${(msg.content?.length || 0) > 50 ? '...' : ''}</span>
+                <span class="wechat-toy-history-msg-content">${escapeHtml(msg.content || '')}</span>
               </div>
             `).join('')
           }
-          ${messages.length > 5 ? `<div style="color: #ff6b8a; font-size: 12px; text-align: center; margin-top: 8px;">还有 ${messages.length - 5} 条消息...</div>` : ''}
         </div>
       </div>
     `;

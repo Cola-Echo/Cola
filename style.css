@@ -4391,9 +4391,18 @@
   box-sizing: border-box;
 }
 
-/* 确保照片气泡不被其他样式折叠 */
+/* 确保照片气泡不被其他样式折叠，强制垂直排列 */
 .wechat-message-content .wechat-photo-bubble {
   display: block !important;
+  flex-shrink: 0;
+  width: 180px !important;
+  float: none !important;
+}
+
+/* 确保消息内容区域的子元素垂直排列 */
+.wechat-message-content {
+  flex-wrap: nowrap !important;
+  flex-direction: column !important;
 }
 
 .wechat-photo-blur {
@@ -4737,7 +4746,7 @@
 
 /* 通话中对话框 */
 .wechat-voice-call-chat {
-  margin: 0 16px;
+  margin: 0 16px 15px 16px;
   background: transparent;
   padding: 10px 0;
   display: flex;
@@ -4836,6 +4845,7 @@
   background: rgba(50, 50, 50, 0.8);
   border-radius: 20px;
   padding: 4px 4px 4px 16px;
+  margin-top: auto;
 }
 
 .wechat-voice-call-input {
@@ -6888,7 +6898,7 @@
 
 .wechat-moment-images.grid-2 {
   grid-template-columns: repeat(2, 1fr);
-  max-width: 280px;
+  max-width: 200px;
 }
 
 .wechat-moment-images.grid-3,
@@ -6972,6 +6982,19 @@
   background: linear-gradient(135deg, #e8f4fd 0%, #d6ecfc 100%);
   border: 1px solid #b8d4f0;
   border-radius: 8px;
+}
+
+/* 当朋友圈图片区域只包含照片描述卡片时，使用垂直布局 */
+.wechat-moment-images:has(.wechat-moment-photo-card) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px;
+  max-width: 180px;
+}
+
+.wechat-moment-images:has(.wechat-moment-photo-card) .wechat-moment-photo-card {
+  width: 100%;
+  max-width: 180px;
 }
 
 .wechat-moment-photo-card .wechat-photo-blur {
@@ -11284,11 +11307,31 @@
 /* 聊天区域 */
 .wechat-toy-control-chat {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.6);
   margin: 0 10px;
   border-radius: 12px;
   box-shadow: inset 0 2px 8px rgba(255, 107, 138, 0.1);
+}
+
+/* 聊天区域滚动条样式 */
+.wechat-toy-control-chat::-webkit-scrollbar {
+  width: 6px;
+}
+
+.wechat-toy-control-chat::-webkit-scrollbar-track {
+  background: rgba(255, 107, 138, 0.1);
+  border-radius: 3px;
+}
+
+.wechat-toy-control-chat::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 138, 0.4);
+  border-radius: 3px;
+}
+
+.wechat-toy-control-chat::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 107, 138, 0.6);
 }
 
 .wechat-toy-control-messages {
@@ -11416,6 +11459,18 @@
   background: rgba(0, 0, 0, 0.3);
 }
 
+.wechat-dark .wechat-toy-control-chat::-webkit-scrollbar-track {
+  background: rgba(255, 107, 138, 0.05);
+}
+
+.wechat-dark .wechat-toy-control-chat::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 138, 0.3);
+}
+
+.wechat-dark .wechat-toy-control-chat::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 107, 138, 0.5);
+}
+
 .wechat-dark .wechat-toy-control-msg.ai {
   background: #2a2a2a;
   color: #e9e9e9;
@@ -11500,6 +11555,25 @@
   padding: 2px 8px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wechat-toy-target-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: inherit;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+.wechat-toy-target-close-btn:hover {
+  opacity: 1;
 }
 
 .wechat-toy-history-card-meta {
@@ -11514,9 +11588,28 @@
 
 .wechat-toy-history-card-messages {
   padding: 10px 14px;
-  max-height: 200px;
+  max-height: 300px;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.5);
+}
+
+/* 心动瞬间消息滚动条样式 */
+.wechat-toy-history-scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+
+.wechat-toy-history-scrollable::-webkit-scrollbar-track {
+  background: rgba(255, 107, 138, 0.1);
+  border-radius: 3px;
+}
+
+.wechat-toy-history-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 138, 0.4);
+  border-radius: 3px;
+}
+
+.wechat-toy-history-scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 107, 138, 0.6);
 }
 
 .wechat-toy-history-msg {
@@ -11566,4 +11659,118 @@
 
 .wechat-dark .wechat-toy-history-msg-content {
   color: #ddd;
+}
+
+/* ===== 悬浮球样式 ===== */
+.wechat-floating-ball {
+  position: fixed;
+  width: 60px;
+  height: 60px;
+  z-index: 99999;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.wechat-floating-ball:hover {
+  transform: scale(1.08);
+}
+
+.wechat-floating-ball:active,
+.wechat-floating-ball.dragging {
+  transform: scale(0.95);
+  opacity: 0.9;
+}
+
+.wechat-floating-ball .floating-ball-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 2px 8px rgba(255, 182, 193, 0.4));
+  transition: filter 0.2s ease;
+}
+
+.wechat-floating-ball:hover .floating-ball-svg {
+  filter: drop-shadow(0 4px 12px rgba(255, 182, 193, 0.6));
+}
+
+/* 悬浮球呼吸动画（可选，可删除） */
+@keyframes floating-ball-breathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+.wechat-floating-ball:not(:hover):not(.dragging) {
+  animation: floating-ball-breathe 3s ease-in-out infinite;
+}
+
+/* ===== 缩小手机样式 ===== */
+#wechat-minimize-btn {
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+#wechat-minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.wechat-dark #wechat-minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* 缩小状态 */
+.wechat-phone.minimized {
+  transform: scale(0.25) !important;
+  transform-origin: center center;
+  position: fixed !important;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s ease,
+              top 0.3s ease,
+              left 0.3s ease,
+              right 0.3s ease;
+  z-index: 99998;
+  border-radius: 20px;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.wechat-phone.minimized:hover {
+  transform: scale(0.27) !important;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+
+/* 缩小时禁用内部交互，但允许事件冒泡到父元素 */
+.wechat-phone.minimized::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99999;
+  cursor: pointer;
+}
+
+.wechat-phone.minimized * {
+  pointer-events: none !important;
+}
+
+/* 缩小时的过渡动画 */
+.wechat-phone {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s ease;
 }

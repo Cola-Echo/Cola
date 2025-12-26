@@ -119,6 +119,26 @@ function getCatboxUrl(id, ext) {
   return `https://files.catbox.moe/${id}.${ext}`;
 }
 
+// 生成唯一的表情名称（如果已存在同名则添加数字后缀）
+function getUniqueStickerName(baseName, stickers) {
+  if (!stickers || stickers.length === 0) return baseName;
+
+  // 检查是否已存在同名
+  const existingNames = stickers.map(s => s.name);
+  if (!existingNames.includes(baseName)) {
+    return baseName;
+  }
+
+  // 添加数字后缀直到找到唯一名称
+  let counter = 1;
+  let newName = `${baseName}${counter}`;
+  while (existingNames.includes(newName)) {
+    counter++;
+    newName = `${baseName}${counter}`;
+  }
+  return newName;
+}
+
 // 切换表情面板显示/隐藏
 export function toggleEmojiPanel() {
   const panel = document.getElementById('wechat-emoji-panel');
@@ -241,19 +261,22 @@ function addStickersFromInput(inputs) {
       }
     }
 
-    // 检查是否已存在
+    // 检查是否已存在（按URL判断）
     const exists = settings.stickers.some(s => s.url === url);
     if (exists) {
       showToast(`已存在: ${name}`, 'info');
       continue;
     }
 
+    // 生成唯一名称（如果同名则自动添加数字后缀）
+    const uniqueName = getUniqueStickerName(name, settings.stickers);
+
     // 调试：显示添加的表情信息
-    console.log('[可乐] 添加表情:', { name, url });
+    console.log('[可乐] 添加表情:', { name: uniqueName, url });
 
     settings.stickers.push({
       url,
-      name,
+      name: uniqueName,
       addedTime: new Date().toISOString()
     });
     addedCount++;
@@ -287,9 +310,11 @@ function addStickerFromFile() {
     for (const file of files) {
       try {
         const dataUrl = await readFileAsDataURL(file);
+        // 生成唯一名称（如果同名则自动添加数字后缀）
+        const uniqueName = getUniqueStickerName(file.name, settings.stickers);
         settings.stickers.push({
           url: dataUrl,
-          name: file.name,
+          name: uniqueName,
           addedTime: new Date().toISOString()
         });
         addedCount++;
