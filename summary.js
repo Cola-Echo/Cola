@@ -162,6 +162,7 @@ export function collectAllChatHistory(selectedFilter = null) {
       allChats.push({
         type: 'contact',
         index: idx,
+        contact: contact, // 添加完整的联系人对象，用于获取通话/一起听/心动瞬间记录
         contactName: `【可乐】和${contact.name}的聊天`,
         contactDescription: contact.description || '',
         messages: realMessages.map(msg => ({
@@ -307,7 +308,7 @@ export function generateSummaryPrompt(allChats, cupNumber) {
   // 如果有自定义模板，使用自定义模板
   let prompt;
   if (settings.customSummaryTemplate && settings.customSummaryTemplate.trim()) {
-    prompt = settings.customSummaryTemplate.trim() + '\n\n以下是线上聊天记录：\n\n【线上聊天记录】\n';
+    prompt = settings.customSummaryTemplate.trim() + '\n\n';
   } else {
     // 使用默认模板（纯对话记录模式）
     prompt = `你的任务是将这段【线上聊天记录】原样整理成JSON格式。
@@ -328,14 +329,28 @@ export function generateSummaryPrompt(allChats, cupNumber) {
 【JSON示例】
 {"keys":["公园","约会","周末"],"content":"{{user}}: 今天去哪玩？\\n{{char}}: 去公园吧\\n{{user}}: 好呀\\n{{char}}: 那我们下午2点见","comment":"${getCupName(cupNumber)}"}
 
-以下是线上聊天记录：
-
-【线上聊天记录】
 `;
   }
 
   allChats.forEach(chat => {
-    prompt += `\n--- ${chat.contactName} ---\n`;
+    // 从联系人名字中提取角色名
+    const match = chat.contactName.match(/【可乐】和(.+)的聊天/);
+    const charName = match ? match[1] : '{{char}}';
+
+    // 开头加说明
+    prompt += `以下是用户{{user}}和角色${charName}的线上聊天内容：\n\n`;
+
+    // 获取联系人的历史记录（用于匹配通话详情）
+    const contact = chat.contact;
+    const callHistory = contact?.callHistory || [];
+    const listenHistory = contact?.listenHistory || [];
+    const toyHistory = contact?.toyHistory || [];
+
+    // 用于追踪已处理的历史记录
+    let callIndex = 0;
+    let listenIndex = 0;
+    let toyIndex = 0;
+
     chat.messages.slice(-300).forEach(msg => {
       let speaker;
       if (msg.role === 'user') {
@@ -343,33 +358,114 @@ export function generateSummaryPrompt(allChats, cupNumber) {
       } else if (chat.type === 'group' && msg.characterName) {
         speaker = msg.characterName;
       } else {
-        // 从"【可乐】和xxx的聊天"格式中提取联系人名字
-        const match = chat.contactName.match(/【可乐】和(.+)的聊天/);
-        speaker = match ? match[1] : '{{char}}';
+        speaker = charName;
       }
-      const timeStr = msg.time ? `[${msg.time}] ` : '';
 
-      // 根据消息类型生成不同的内容描述
-      let messageContent;
-      if (msg.musicInfo) {
-        // 音乐分享
-        const musicName = msg.musicInfo.name || '未知歌曲';
-        const musicArtist = msg.musicInfo.artist || '未知歌手';
-        messageContent = `[分享歌曲] ${musicName} - ${musicArtist}`;
-      } else if (msg.isVoice) {
-        // 语音消息
-        messageContent = `[语音] ${msg.content}`;
-      } else if (msg.isSticker) {
-        // 表情包
-        messageContent = '[发送了一个表情包]';
-      } else if (msg.isPhoto) {
-        // 图片
-        messageContent = '[发送了一张图片]';
+      // 检查是否是通话记录
+      const callRecordMatch = (msg.content || '').match(/^\[通话记录[：:](.+?)\]$/);
+      const videoCallRecordMatch = (msg.content || '').match(/^\[视频通话[：:](.+?)\]$/);
+      const listenRecordMatch = (msg.content || '').match(/^\[一起听[：:](.+?)\]$/);
+      const toyRecordMatch = (msg.content || '').match(/^\[心动瞬间[：:](.+?)\]$/);
+
+      if (callRecordMatch) {
+        // 语音通话记录
+        const duration = callRecordMatch[1];
+        const voiceRecords = callHistory.filter(r => r.type === 'voice');
+        const record = voiceRecords[callIndex];
+        callIndex++;
+
+        prompt += `\n--- 以下是本次语音通话 ---\n`;
+        if (record && record.messages && record.messages.length > 0) {
+          record.messages.forEach(m => {
+            const s = m.role === 'user' ? '{{user}}' : charName;
+            prompt += `${s}: ${m.content}\n`;
+          });
+        } else {
+          prompt += `（通话时长：${duration}）\n`;
+        }
+        prompt += `--- 本次语音通话结束 ---\n\n`;
+
+      } else if (videoCallRecordMatch) {
+        // 视频通话记录
+        const duration = videoCallRecordMatch[1];
+        const videoRecords = callHistory.filter(r => r.type === 'video');
+        const record = videoRecords[callIndex];
+
+        prompt += `\n--- 以下是本次视频通话 ---\n`;
+        if (record && record.messages && record.messages.length > 0) {
+          record.messages.forEach(m => {
+            const s = m.role === 'user' ? '{{user}}' : charName;
+            prompt += `${s}: ${m.content}\n`;
+          });
+        } else {
+          prompt += `（通话时长：${duration}）\n`;
+        }
+        prompt += `--- 本次视频通话结束 ---\n\n`;
+
+      } else if (listenRecordMatch) {
+        // 一起听记录
+        const info = listenRecordMatch[1];
+        const record = listenHistory[listenIndex];
+        listenIndex++;
+
+        prompt += `\n--- 以下是本次一起听 ---\n`;
+        if (record) {
+          if (record.songName) {
+            prompt += `正在听：${record.songName}${record.artist ? ' - ' + record.artist : ''}\n`;
+          }
+          if (record.messages && record.messages.length > 0) {
+            record.messages.forEach(m => {
+              const s = m.role === 'user' ? '{{user}}' : charName;
+              prompt += `${s}: ${m.content}\n`;
+            });
+          }
+        } else {
+          prompt += `（${info}）\n`;
+        }
+        prompt += `--- 本次一起听结束 ---\n\n`;
+
+      } else if (toyRecordMatch) {
+        // 心动瞬间记录
+        const info = toyRecordMatch[1];
+        const record = toyHistory[toyIndex];
+        toyIndex++;
+
+        prompt += `\n--- 以下是本次心动瞬间 ---\n`;
+        if (record) {
+          if (record.gift) {
+            const targetText = record.target === 'character' ? `${charName}在用` : '{{user}}在用';
+            prompt += `使用道具：${record.gift.name}（${targetText}）\n`;
+          }
+          if (record.messages && record.messages.length > 0) {
+            record.messages.forEach(m => {
+              const s = m.role === 'user' ? '{{user}}' : charName;
+              prompt += `${s}: ${m.content}\n`;
+            });
+          }
+        } else {
+          prompt += `（${info}）\n`;
+        }
+        prompt += `--- 本次心动瞬间结束 ---\n\n`;
+
       } else {
-        messageContent = msg.content;
-      }
+        // 普通消息（不加时间戳）
+        let messageContent;
+        if (msg.musicInfo) {
+          const musicName = msg.musicInfo.name || '未知歌曲';
+          const musicArtist = msg.musicInfo.artist || '未知歌手';
+          messageContent = `[分享歌曲] ${musicName} - ${musicArtist}`;
+        } else if (msg.isVoice) {
+          messageContent = `[语音] ${msg.content}`;
+        } else if (msg.isSticker) {
+          messageContent = '[发送了一个表情包]';
+        } else if (msg.isPhoto) {
+          messageContent = '[发送了一张图片]';
+        } else {
+          messageContent = msg.content;
+        }
 
-      prompt += `${timeStr}${speaker}: ${messageContent}\n`;
+        prompt += `${speaker}: ${messageContent}\n`;
+      }
     });
   });
 
