@@ -91,7 +91,7 @@ function renderGiftContent() {
   const gridContainer = document.getElementById('wechat-gift-grid');
   const sendBtn = document.getElementById('wechat-gift-send');
   const targetContainer = document.getElementById('wechat-gift-target');
-  const headerEl = document.querySelector('.wechat-gift-header');
+  const headerEl = document.querySelector('.wechat-gift-navbar');
 
   if (!tabsContainer || !gridContainer) return;
 

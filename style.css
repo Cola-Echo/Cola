@@ -10518,6 +10518,7 @@
 
 .wechat-gift-navbar {
   background: #111111 !important;
+  position: relative;
 }
 
 .wechat-gift-navbar .wechat-navbar-title {
