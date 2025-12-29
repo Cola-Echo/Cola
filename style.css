@@ -10778,6 +10778,81 @@
   color: #999;
 }
 
+/* ========== 多选礼物卡片样式 ========== */
+.wechat-multi-gift-card {
+  background: linear-gradient(135deg, #2d1f3d, #1f1a2a);
+  border-radius: 12px;
+  padding: 12px;
+  max-width: 240px;
+  border: 1px solid rgba(156, 39, 176, 0.3);
+}
+
+.wechat-multi-gift-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wechat-multi-gift-icon {
+  font-size: 16px;
+}
+
+.wechat-multi-gift-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e9e9e9;
+  flex: 1;
+}
+
+.wechat-multi-gift-target {
+  font-size: 11px;
+  color: #ff6b8a;
+  background: rgba(255, 107, 138, 0.15);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.wechat-multi-gift-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wechat-multi-gift-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 5px 10px;
+  border-radius: 16px;
+  transition: background 0.2s;
+}
+
+.wechat-multi-gift-tag:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.wechat-multi-gift-tag-emoji {
+  font-size: 16px;
+}
+
+.wechat-multi-gift-tag-name {
+  font-size: 12px;
+  color: #ccc;
+}
+
+.wechat-multi-gift-desc {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  color: #999;
+  font-style: italic;
+}
+
 /* ========== 拉黑样式 ========== */
 .wechat-blocked-badge {
   font-size: 12px;

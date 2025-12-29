@@ -796,20 +796,29 @@ export function appendMultiGiftMessage(role, gifts, customDesc, contact, target 
       : firstChar;
   }
 
-  const giftEmojis = gifts.map(g => g.emoji).join(' ');
-  const giftNames = gifts.map(g => escapeHtml(g.name)).join('、');
-  const giftTypeLabel = target === 'character' ? '情趣套装·送TA' : '情趣套装·送自己';
+  const giftTypeLabel = target === 'character' ? '送TA' : '送自己';
+
+  // 生成每个礼物的标签
+  const giftTagsHtml = gifts.map(g => `
+    <div class="wechat-multi-gift-tag">
+      <span class="wechat-multi-gift-tag-emoji">${g.emoji}</span>
+      <span class="wechat-multi-gift-tag-name">${escapeHtml(g.name)}</span>
+    </div>
+  `).join('');
 
   messageDiv.innerHTML = `
     <div class="wechat-message-avatar">${avatarContent}</div>
     <div class="wechat-message-content">
-      <div class="wechat-gift-bubble wechat-gift-bubble-toy wechat-gift-bubble-multi">
-        <div class="wechat-gift-bubble-emoji">${giftEmojis}</div>
-        <div class="wechat-gift-bubble-info">
-          <div class="wechat-gift-bubble-name">${giftNames}</div>
-          ${customDesc ? `<div class="wechat-gift-bubble-desc">${escapeHtml(customDesc)}</div>` : ''}
+      <div class="wechat-multi-gift-card">
+        <div class="wechat-multi-gift-header">
+          <span class="wechat-multi-gift-icon">🎁</span>
+          <span class="wechat-multi-gift-title">情趣套装</span>
+          <span class="wechat-multi-gift-target">${giftTypeLabel}</span>
         </div>
-        <div class="wechat-gift-bubble-label">${giftTypeLabel}</div>
+        <div class="wechat-multi-gift-tags">
+          ${giftTagsHtml}
+        </div>
+        ${customDesc ? `<div class="wechat-multi-gift-desc">${escapeHtml(customDesc)}</div>` : ''}
       </div>
     </div>
   `;
