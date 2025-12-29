@@ -330,12 +330,27 @@ function renderToyWheelSelector() {
 
   // 绑定轮盘选项事件（支持触摸）
   wheelOptions.querySelectorAll('.wechat-toy-wheel-option').forEach(opt => {
-    opt.addEventListener('click', (e) => {
+    let touchHandled = false;
+
+    opt.addEventListener('touchstart', (e) => {
+      touchHandled = false;
+    }, { passive: true });
+
+    opt.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      touchHandled = true;
       const index = parseInt(opt.dataset.toyIndex);
       switchToToy(index);
     });
-    opt.addEventListener('touchend', (e) => {
-      e.preventDefault();
+
+    opt.addEventListener('click', (e) => {
+      // 如果刚处理过触摸事件，跳过点击
+      if (touchHandled) {
+        touchHandled = false;
+        return;
+      }
+      e.stopPropagation();
       const index = parseInt(opt.dataset.toyIndex);
       switchToToy(index);
     });

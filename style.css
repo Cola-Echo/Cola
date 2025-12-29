@@ -11634,6 +11634,7 @@
   align-items: center;
   height: 180px;
   margin: 10px 0;
+  z-index: 10;
 }
 
 .wechat-toy-wheel-heart {
@@ -11712,6 +11713,8 @@
 .wechat-toy-wheel-options.open .wechat-toy-wheel-option {
   opacity: 1;
   transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1);
+  pointer-events: auto;
+  z-index: 10;
 }
 
 .wechat-toy-wheel-option:hover {
