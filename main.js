@@ -538,8 +538,21 @@ function onMinimizedDragMove(e) {
     minimizeState.hasMoved = true;
   }
 
-  const newLeft = minimizeState.initialLeft + deltaX;
-  const newTop = minimizeState.initialTop + deltaY;
+  // 直接使用当前触摸/鼠标位置减去元素尺寸的一半，让元素中心跟随手指
+  const scale = 0.25;
+  const rect = phone.getBoundingClientRect();
+  const scaledWidth = rect.width;
+  const scaledHeight = rect.height;
+
+  // 计算新位置：让缩小后的手机中心跟随手指
+  let newLeft = clientX - scaledWidth / 2;
+  let newTop = clientY - scaledHeight / 2;
+
+  // 限制在视口内
+  const maxX = window.innerWidth - scaledWidth;
+  const maxY = window.innerHeight - scaledHeight;
+  newLeft = Math.min(Math.max(0, newLeft), maxX);
+  newTop = Math.min(Math.max(0, newTop), maxY);
 
   phone.style.left = newLeft + 'px';
   phone.style.top = newTop + 'px';

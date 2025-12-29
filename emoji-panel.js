@@ -171,12 +171,30 @@ export function refreshEmojiGrid() {
   const content = document.getElementById('wechat-emoji-content');
   if (!content) return;
 
+  const settings = getSettings();
+  const userStickers = Array.isArray(settings.stickers) ? settings.stickers : [];
+
   let html = '';
+
+  // 我的表情区域（用户添加的表情）
+  html += '<div class="wechat-emoji-section-title">我的表情</div>';
+  html += '<div class="wechat-emoji-grid" id="wechat-emoji-user-grid">';
+  html += `<button class="wechat-emoji-add" id="wechat-emoji-add-btn">+</button>`;
+  userStickers.forEach((sticker, index) => {
+    html += `
+      <div class="wechat-emoji-swipe-container" data-user-index="${index}">
+        <div class="wechat-emoji-item wechat-emoji-user-item" title="${sticker.name || '自定义表情'}">
+          <img src="${sticker.url}" alt="${sticker.name || ''}" loading="lazy">
+        </div>
+        <div class="wechat-emoji-delete-bg">删除</div>
+      </div>
+    `;
+  });
+  html += '</div>';
 
   // 默认表情区域
   html += '<div class="wechat-emoji-section-title">默认表情</div>';
   html += '<div class="wechat-emoji-grid" id="wechat-emoji-default-grid">';
-  html += `<button class="wechat-emoji-add" id="wechat-emoji-add-btn">+</button>`;
   DEFAULT_STICKERS.forEach((sticker, index) => {
     const url = getCatboxUrl(sticker.id, sticker.ext);
     html += `
@@ -192,12 +210,96 @@ export function refreshEmojiGrid() {
   // 绑定添加按钮事件
   document.getElementById('wechat-emoji-add-btn')?.addEventListener('click', showAddStickerDialog);
 
+  // 绑定用户表情左滑删除
+  content.querySelectorAll('.wechat-emoji-swipe-container').forEach(container => {
+    setupSwipeToDelete(container);
+  });
+
   // 绑定默认表情点击事件
   content.querySelectorAll('.wechat-emoji-default-item').forEach(item => {
     item.addEventListener('click', () => {
       const index = parseInt(item.dataset.defaultIndex);
       sendDefaultSticker(index);
     });
+  });
+}
+
+// 设置左滑删除
+function setupSwipeToDelete(container) {
+  const item = container.querySelector('.wechat-emoji-user-item');
+  const index = parseInt(container.dataset.userIndex);
+  let startX = 0;
+  let currentX = 0;
+  let isDragging = false;
+  let isOpen = false;
+
+  const deleteThreshold = 50; // 滑动超过此距离触发删除状态
+
+  function onStart(e) {
+    // 如果已经打开，点击任意位置关闭
+    if (isOpen) {
+      resetPosition();
+      return;
+    }
+    isDragging = true;
+    startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+    item.style.transition = 'none';
+  }
+
+  function onMove(e) {
+    if (!isDragging) return;
+    currentX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+    let diff = currentX - startX;
+    // 只允许左滑
+    if (diff > 0) diff = 0;
+    // 限制最大滑动距离
+    if (diff < -deleteThreshold - 20) diff = -deleteThreshold - 20;
+    item.style.transform = `translateX(${diff}px)`;
+  }
+
+  function onEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    item.style.transition = 'transform 0.2s';
+
+    const diff = currentX - startX;
+    if (diff < -deleteThreshold) {
+      // 显示删除按钮
+      item.style.transform = `translateX(-${deleteThreshold}px)`;
+      isOpen = true;
+    } else if (Math.abs(diff) < 5 && !isOpen) {
+      // 点击发送
+      sendUserSticker(index);
+    } else {
+      resetPosition();
+    }
+  }
+
+  function resetPosition() {
+    item.style.transition = 'transform 0.2s';
+    item.style.transform = 'translateX(0)';
+    isOpen = false;
+  }
+
+  // 触摸事件
+  container.addEventListener('touchstart', onStart, { passive: true });
+  container.addEventListener('touchmove', onMove, { passive: true });
+  container.addEventListener('touchend', onEnd);
+
+  // 鼠标事件
+  container.addEventListener('mousedown', onStart);
+  container.addEventListener('mousemove', onMove);
+  container.addEventListener('mouseup', onEnd);
+  container.addEventListener('mouseleave', () => {
+    if (isDragging) {
+      isDragging = false;
+      resetPosition();
+    }
+  });
+
+  // 删除按钮点击
+  container.querySelector('.wechat-emoji-delete-bg').addEventListener('click', () => {
+    deleteSticker(index);
   });
 }
 

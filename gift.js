@@ -58,11 +58,17 @@ let currentCategory = 'normal';
 let selectedGift = null;
 let selectedTarget = 'character'; // 'character' 送角色 | 'user' 送用户
 
+// 多选模式状态
+let multiSelectMode = false;
+let selectedGifts = []; // 多选时存储多个礼物
+
 // 显示礼物页面
 export function showGiftPage() {
   currentCategory = 'normal';
   selectedGift = null;
   selectedTarget = 'character';
+  multiSelectMode = false;
+  selectedGifts = [];
 
   const page = document.getElementById('wechat-gift-page');
   if (page) {
@@ -85,8 +91,37 @@ function renderGiftContent() {
   const gridContainer = document.getElementById('wechat-gift-grid');
   const sendBtn = document.getElementById('wechat-gift-send');
   const targetContainer = document.getElementById('wechat-gift-target');
+  const headerEl = document.querySelector('.wechat-gift-header');
 
   if (!tabsContainer || !gridContainer) return;
+
+  // 渲染多选按钮（仅情趣玩具分类显示）
+  let multiSelectBtn = document.getElementById('wechat-gift-multi-select-btn');
+  if (currentCategory === 'toy') {
+    if (!multiSelectBtn && headerEl) {
+      multiSelectBtn = document.createElement('button');
+      multiSelectBtn.id = 'wechat-gift-multi-select-btn';
+      multiSelectBtn.className = 'wechat-gift-multi-select-btn';
+      headerEl.appendChild(multiSelectBtn);
+    }
+    if (multiSelectBtn) {
+      if (multiSelectMode) {
+        multiSelectBtn.textContent = selectedGifts.length > 0 ? `完成(${selectedGifts.length})` : '取消';
+        multiSelectBtn.classList.add('active');
+      } else {
+        multiSelectBtn.textContent = '多选';
+        multiSelectBtn.classList.remove('active');
+      }
+      multiSelectBtn.onclick = toggleMultiSelectMode;
+    }
+  } else {
+    // 非情趣玩具分类，移除多选按钮并重置状态
+    if (multiSelectBtn) {
+      multiSelectBtn.remove();
+    }
+    multiSelectMode = false;
+    selectedGifts = [];
+  }
 
   // 渲染送礼目标选择（仅情趣玩具显示）
   if (targetContainer) {
@@ -132,6 +167,11 @@ function renderGiftContent() {
     tab.addEventListener('click', () => {
       currentCategory = tab.dataset.category;
       selectedGift = null;
+      // 切换分类时不重置多选，只在非toy分类时重置
+      if (tab.dataset.category !== 'toy') {
+        multiSelectMode = false;
+        selectedGifts = [];
+      }
       renderGiftContent();
     });
   });
@@ -140,13 +180,21 @@ function renderGiftContent() {
   const category = GIFT_CATEGORIES[currentCategory];
   let gridHtml = '';
   category.items.forEach(item => {
-    const selectedClass = selectedGift?.id === item.id ? 'selected' : '';
+    // 多选模式下检查是否在selectedGifts中
+    const isSelectedInMulti = multiSelectMode && selectedGifts.some(g => g.id === item.id);
+    // 单选模式下检查是否是selectedGift
+    const isSelectedSingle = !multiSelectMode && selectedGift?.id === item.id;
+    const selectedClass = (isSelectedInMulti || isSelectedSingle) ? 'selected' : '';
     const controlBadge = item.hasControl ? '<span class="wechat-gift-control-badge">可控</span>' : '';
+    // 多选模式下显示勾选标记
+    const checkMark = isSelectedInMulti ? '<span class="wechat-gift-check-mark">✓</span>' : '';
+
     gridHtml += `
       <div class="wechat-gift-item ${selectedClass}" data-gift-id="${item.id}">
         <span class="wechat-gift-emoji">${item.emoji}</span>
         <span class="wechat-gift-name">${item.name}</span>
         ${controlBadge}
+        ${checkMark}
       </div>
     `;
   });
@@ -156,14 +204,39 @@ function renderGiftContent() {
   gridContainer.querySelectorAll('.wechat-gift-item').forEach(item => {
     item.addEventListener('click', () => {
       const giftId = item.dataset.giftId;
-      selectedGift = category.items.find(g => g.id === giftId);
+      const gift = category.items.find(g => g.id === giftId);
+
+      if (multiSelectMode && currentCategory === 'toy') {
+        // 多选模式：只能选择有控制功能的玩具
+        if (!gift.hasControl) {
+          showToast('该玩具不支持多选控制');
+          return;
+        }
+        // 切换选中状态
+        const existingIndex = selectedGifts.findIndex(g => g.id === giftId);
+        if (existingIndex >= 0) {
+          selectedGifts.splice(existingIndex, 1);
+        } else {
+          if (selectedGifts.length >= 5) {
+            showToast('最多选择5个玩具');
+            return;
+          }
+          selectedGifts.push(gift);
+        }
+      } else {
+        // 单选模式
+        selectedGift = gift;
+      }
       renderGiftContent();
     });
   });
 
   // 更新发送按钮状态
   if (sendBtn) {
-    if (selectedGift) {
+    if (multiSelectMode && selectedGifts.length > 0) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = `送出 ${selectedGifts.length} 件玩具`;
+    } else if (!multiSelectMode && selectedGift) {
       sendBtn.disabled = false;
       sendBtn.textContent = `送出 ${selectedGift.name}`;
     } else {
@@ -173,9 +246,27 @@ function renderGiftContent() {
   }
 }
 
+// 切换多选模式
+function toggleMultiSelectMode() {
+  if (multiSelectMode && selectedGifts.length > 0) {
+    // 如果已有选择，点击"完成"按钮触发发送
+    sendGift();
+  } else {
+    // 切换模式
+    multiSelectMode = !multiSelectMode;
+    if (!multiSelectMode) {
+      selectedGifts = [];
+    }
+    selectedGift = null;
+    renderGiftContent();
+  }
+}
+
 // 发送礼物
 export async function sendGift() {
-  if (!selectedGift) {
+  // 检查是否有选择
+  const isMulti = multiSelectMode && selectedGifts.length > 0;
+  if (!isMulti && !selectedGift) {
     showToast('请选择礼物');
     return;
   }
@@ -189,7 +280,6 @@ export async function sendGift() {
   const contact = settings.contacts[currentChatIndex];
   if (!contact) return;
 
-  const gift = selectedGift;
   const isToy = currentCategory === 'toy';
   const target = isToy ? selectedTarget : null;
 
@@ -201,6 +291,150 @@ export async function sendGift() {
   const customDesc = descInput?.value?.trim() || '';
   if (descInput) descInput.value = '';
 
+  // 保存到聊天历史
+  const now = new Date();
+  const timeStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+
+  if (!contact.chatHistory) {
+    contact.chatHistory = [];
+  }
+
+  // 多选模式处理
+  if (isMulti) {
+    const giftsToSend = [...selectedGifts];
+    const giftNames = giftsToSend.map(g => g.name).join('、');
+    const giftEmojis = giftsToSend.map(g => g.emoji).join(' ');
+    const targetText = target === 'character' ? '送TA' : '送自己';
+    const giftMessage = `[情趣礼物套装] ${giftEmojis} ${giftNames}（${targetText}）${customDesc ? ` - ${customDesc}` : ''}`;
+
+    const giftRecord = {
+      role: 'user',
+      content: giftMessage,
+      time: timeStr,
+      timestamp: Date.now(),
+      isGift: true,
+      isMultiGift: true,
+      giftInfo: {
+        gifts: giftsToSend.map(g => ({
+          id: g.id,
+          name: g.name,
+          emoji: g.emoji,
+          desc: g.desc,
+          hasControl: g.hasControl,
+          hasShock: g.hasShock
+        })),
+        isToy: true,
+        target: target,
+        customDesc: customDesc
+      }
+    };
+
+    contact.chatHistory.push(giftRecord);
+
+    // 显示礼物消息（多选版本）
+    appendMultiGiftMessage('user', giftsToSend, customDesc, contact, target);
+
+    contact.lastMessage = giftMessage;
+
+    // 添加到待配送列表（作为一个多玩具组合）
+    if (!contact.pendingGifts) {
+      contact.pendingGifts = [];
+    }
+
+    const multiPendingGift = {
+      isMulti: true,
+      toys: giftsToSend.map(g => ({
+        giftId: g.id,
+        giftName: g.name,
+        giftEmoji: g.emoji,
+        giftDesc: g.desc,
+        hasControl: g.hasControl,
+        hasShock: g.hasShock || false
+      })),
+      target: target,
+      startMessageCount: contact.chatHistory.length,
+      deliveredAt: null,
+      isDelivered: false,
+      isUsing: false,
+      timestamp: Date.now()
+    };
+
+    contact.pendingGifts.push(multiPendingGift);
+
+    // 显示配送中弹窗
+    setTimeout(() => {
+      showNotificationBanner('快递', `您选择的${giftsToSend.length}件商品正在配送中~`, 4000);
+    }, 500);
+
+    // 2秒后弹出加急配送弹窗
+    setTimeout(() => {
+      showExpressDeliveryModal(multiPendingGift, contact);
+    }, 2000);
+
+    requestSave();
+    refreshChatList();
+
+    // 显示打字指示器
+    showTypingIndicator(contact);
+
+    // 构建给AI的提示
+    const targetTextAI = target === 'character' ? '你' : '用户';
+    const aiPrompt = `[系统提示：用户刚刚购买了一套情趣玩具套装，包括：${giftNames}，准备送给${targetTextAI}使用。商品正在配送中，预计很快就会送达。${customDesc ? `用户附言：${customDesc}` : ''}
+
+请根据你的角色性格，对这套即将到来的礼物做出反应：
+- 如果是送给你的：可以表现出期待、害羞、紧张、好奇等情绪，可以问用户打算怎么用这些
+- 如果是送给用户的：可以表现出好奇、调侃、期待看到用户反应等
+- 根据你的人设和与用户的关系，反应可以是含蓄的、热情的、或者假装矜持的
+- 回复不要太短，请展现角色的内心活动和情绪变化
+
+【重要】只能输出纯文字消息，禁止输出任何特殊格式标签]`;
+
+    try {
+      const aiResponse = await callAI(contact, aiPrompt);
+      hideTypingIndicator();
+
+      if (aiResponse) {
+        const aiMessages = splitAIMessages(aiResponse);
+
+        for (const msg of aiMessages) {
+          let reply = msg.trim();
+          reply = reply.replace(/<\s*meme\s*>[\s\S]*?<\s*\/\s*meme\s*>/gi, '').trim();
+          reply = reply.replace(/\[.*?\]/g, '').trim();
+          reply = reply.replace(/（[^）]*）/g, '').trim();
+          reply = reply.replace(/\([^)]*\)/g, '').trim();
+
+          if (reply) {
+            contact.chatHistory.push({
+              role: 'assistant',
+              content: reply,
+              time: timeStr,
+              timestamp: Date.now()
+            });
+            appendMessage('assistant', reply, contact);
+          }
+        }
+
+        const lastMsg = aiMessages[aiMessages.length - 1]?.trim()?.replace(/\[.*?\]/g, '').trim();
+        if (lastMsg) {
+          contact.lastMessage = lastMsg.length > 20 ? lastMsg.substring(0, 20) + '...' : lastMsg;
+        }
+        requestSave();
+        refreshChatList();
+      }
+    } catch (err) {
+      hideTypingIndicator();
+      console.error('[可乐] 礼物AI回复失败:', err);
+    }
+
+    // 重置多选状态
+    multiSelectMode = false;
+    selectedGifts = [];
+    return;
+  }
+
+  // 单选模式处理（原有逻辑）
+  const gift = selectedGift;
+
   // 构建礼物消息
   let giftMessage;
   if (isToy) {
@@ -208,14 +442,6 @@ export async function sendGift() {
     giftMessage = `[情趣礼物] ${gift.emoji} ${gift.name}（${targetText}）${customDesc ? ` - ${customDesc}` : ''}`;
   } else {
     giftMessage = `[礼物] ${gift.emoji} ${gift.name}${customDesc ? ` - ${customDesc}` : ''}`;
-  }
-
-  // 保存到聊天历史
-  const now = new Date();
-  const timeStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-
-  if (!contact.chatHistory) {
-    contact.chatHistory = [];
   }
 
   const giftRecord = {
@@ -271,6 +497,11 @@ export async function sendGift() {
     setTimeout(() => {
       showNotificationBanner('快递', '您选择的商品正在配送中~', 4000);
     }, 500);
+
+    // 2秒后弹出加急配送弹窗
+    setTimeout(() => {
+      showExpressDeliveryModal(pendingGift, contact);
+    }, 2000);
   }
 
   requestSave();
@@ -391,6 +622,46 @@ export function checkGiftDelivery(contact) {
   }
 }
 
+// 显示加急配送弹窗
+export function showExpressDeliveryModal(gift, contact) {
+  const modal = document.getElementById('wechat-express-delivery-modal');
+  if (!modal) return;
+
+  modal.classList.remove('hidden');
+
+  const yesBtn = document.getElementById('wechat-express-yes');
+  const noBtn = document.getElementById('wechat-express-no');
+
+  const handleYes = () => {
+    modal.classList.add('hidden');
+    yesBtn.removeEventListener('click', handleYes);
+    noBtn.removeEventListener('click', handleNo);
+
+    // 标记为已送达
+    gift.isDelivered = true;
+    gift.deliveredAt = Date.now();
+    requestSave();
+
+    // 显示送达通知
+    showNotificationBanner('快递', '您的商品已送达~', 3000);
+
+    // 2秒后弹出"是否开始玩"弹窗
+    setTimeout(() => {
+      showGiftArrivalModal(gift, contact);
+    }, 2000);
+  };
+
+  const handleNo = () => {
+    modal.classList.add('hidden');
+    yesBtn.removeEventListener('click', handleYes);
+    noBtn.removeEventListener('click', handleNo);
+    // 什么都不做，走原有的25条消息检测逻辑
+  };
+
+  yesBtn.addEventListener('click', handleYes);
+  noBtn.addEventListener('click', handleNo);
+}
+
 // 显示礼物送达询问弹窗
 export function showGiftArrivalModal(gift, contact) {
   const modal = document.getElementById('wechat-gift-arrival-modal');
@@ -398,10 +669,16 @@ export function showGiftArrivalModal(gift, contact) {
 
   if (!modal || !bodyEl) return;
 
-  bodyEl.innerHTML = `您的 <strong>${gift.giftName}</strong> 已送达，您要现在开始玩吗？`;
+  // 支持多选礼物
+  if (gift.isMulti) {
+    const toyNames = gift.toys.map(t => t.giftName).join('、');
+    bodyEl.innerHTML = `您的 <strong>${toyNames}</strong> 已送达，您要现在开始玩吗？`;
+  } else {
+    bodyEl.innerHTML = `您的 <strong>${gift.giftName}</strong> 已送达，您要现在开始玩吗？`;
+  }
 
   // 存储当前礼物信息
-  modal.dataset.giftId = gift.giftId;
+  modal.dataset.giftId = gift.giftId || (gift.isMulti ? 'multi' : '');
   modal.dataset.giftTimestamp = gift.timestamp;
 
   modal.classList.remove('hidden');
@@ -483,6 +760,53 @@ export function appendGiftMessage(role, gift, isToy, customDesc, contact, target
         <div class="wechat-gift-bubble-emoji">${gift.emoji}</div>
         <div class="wechat-gift-bubble-info">
           <div class="wechat-gift-bubble-name">${escapeHtml(gift.name)}</div>
+          ${customDesc ? `<div class="wechat-gift-bubble-desc">${escapeHtml(customDesc)}</div>` : ''}
+        </div>
+        <div class="wechat-gift-bubble-label">${giftTypeLabel}</div>
+      </div>
+    </div>
+  `;
+
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// 添加多选礼物消息到界面
+export function appendMultiGiftMessage(role, gifts, customDesc, contact, target = null) {
+  const messagesContainer = document.getElementById('wechat-chat-messages');
+  if (!messagesContainer) return;
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `wechat-message ${role === 'user' ? 'self' : ''}`;
+
+  const firstChar = contact?.name ? contact.name.charAt(0) : '?';
+
+  // 获取用户头像
+  let avatarContent;
+  if (role === 'user') {
+    const settings = getSettings();
+    if (settings.userAvatar) {
+      avatarContent = `<img src="${settings.userAvatar}" alt="" onerror="this.style.display='none';this.parentElement.textContent='我'">`;
+    } else {
+      avatarContent = '我';
+    }
+  } else {
+    avatarContent = contact?.avatar
+      ? `<img src="${contact.avatar}" alt="" onerror="this.style.display='none';this.parentElement.innerHTML='${firstChar}'">`
+      : firstChar;
+  }
+
+  const giftEmojis = gifts.map(g => g.emoji).join(' ');
+  const giftNames = gifts.map(g => escapeHtml(g.name)).join('、');
+  const giftTypeLabel = target === 'character' ? '情趣套装·送TA' : '情趣套装·送自己';
+
+  messageDiv.innerHTML = `
+    <div class="wechat-message-avatar">${avatarContent}</div>
+    <div class="wechat-message-content">
+      <div class="wechat-gift-bubble wechat-gift-bubble-toy wechat-gift-bubble-multi">
+        <div class="wechat-gift-bubble-emoji">${giftEmojis}</div>
+        <div class="wechat-gift-bubble-info">
+          <div class="wechat-gift-bubble-name">${giftNames}</div>
           ${customDesc ? `<div class="wechat-gift-bubble-desc">${escapeHtml(customDesc)}</div>` : ''}
         </div>
         <div class="wechat-gift-bubble-label">${giftTypeLabel}</div>

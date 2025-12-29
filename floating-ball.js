@@ -18,46 +18,27 @@ let floatingBallState = {
   hasMoved: false
 };
 
-// SVG 图标 - 渐变圆圈和猫咪
+// SVG 图标 - 简约猫咪（只有耳朵和胡须）
 const FLOATING_BALL_SVG = `
-<svg viewBox="0 0 100 100" width="60" height="60" class="floating-ball-svg">
+<svg viewBox="0 0 100 100" width="30" height="30" class="floating-ball-svg">
   <defs>
-    <linearGradient id="ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#FFB6C1;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#FFC0CB;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#FFEFD5;stop-opacity:1" />
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFE4EC;stop-opacity:1" />
     </linearGradient>
   </defs>
-  <!-- 渐变圆圈 -->
-  <circle cx="50" cy="50" r="44" fill="none" stroke="url(#ring-gradient)" stroke-width="5" stroke-linecap="round"/>
-  <!-- 猫咪头部轮廓 -->
-  <g transform="translate(50, 52)" stroke="#333" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- 头部 -->
-    <ellipse cx="0" cy="0" rx="22" ry="18"/>
-    <!-- 左耳 -->
-    <path d="M-18,-12 L-22,-24 L-12,-16"/>
-    <!-- 右耳 -->
-    <path d="M18,-12 L22,-24 L12,-16"/>
-    <!-- 内耳（粉色填充） -->
-    <path d="M-17,-14 L-19,-21 L-13,-16" fill="#FFB6C1" stroke="none"/>
-    <path d="M17,-14 L19,-21 L13,-16" fill="#FFB6C1" stroke="none"/>
-    <!-- 左眼 -->
-    <circle cx="-8" cy="-2" r="3" fill="#333"/>
-    <!-- 右眼 -->
-    <circle cx="8" cy="-2" r="3" fill="#333"/>
-    <!-- 鼻子 -->
-    <ellipse cx="0" cy="6" rx="2" ry="1.5" fill="#FFB6C1"/>
-    <!-- 嘴巴 -->
-    <path d="M0,7 Q-4,12 -8,9" fill="none"/>
-    <path d="M0,7 Q4,12 8,9" fill="none"/>
-    <!-- 腮红 -->
-    <ellipse cx="-14" cy="4" rx="4" ry="3" fill="#FFB6C1" opacity="0.5" stroke="none"/>
-    <ellipse cx="14" cy="4" rx="4" ry="3" fill="#FFB6C1" opacity="0.5" stroke="none"/>
-    <!-- 胡须 -->
-    <path d="M-24,0 L-12,2"/>
-    <path d="M-24,6 L-12,5"/>
-    <path d="M24,0 L12,2"/>
-    <path d="M24,6 L12,5"/>
+  <!-- 圆形背景 -->
+  <circle cx="50" cy="50" r="48" fill="url(#bg-gradient)"/>
+  <!-- 左耳 -->
+  <path d="M18,45 L28,12 L45,38" fill="#FFB6C1" stroke="#333" stroke-width="2" stroke-linejoin="round"/>
+  <!-- 右耳 -->
+  <path d="M82,45 L72,12 L55,38" fill="#FFB6C1" stroke="#333" stroke-width="2" stroke-linejoin="round"/>
+  <!-- 胡须 -->
+  <g stroke="#333" stroke-width="2" stroke-linecap="round">
+    <path d="M8,52 L35,56"/>
+    <path d="M8,64 L35,62"/>
+    <path d="M92,52 L65,56"/>
+    <path d="M92,64 L65,62"/>
   </g>
 </svg>
 `;
@@ -95,14 +76,14 @@ function restorePosition(ball) {
 
   if (savedPos && savedPos.x !== undefined && savedPos.y !== undefined) {
     // 确保位置在视口内
-    const maxX = window.innerWidth - 60;
-    const maxY = window.innerHeight - 60;
+    const maxX = window.innerWidth - 30;
+    const maxY = window.innerHeight - 30;
     floatingBallState.currentX = Math.min(Math.max(0, savedPos.x), maxX);
     floatingBallState.currentY = Math.min(Math.max(0, savedPos.y), maxY);
   } else {
     // 默认位置：右侧中间
-    floatingBallState.currentX = window.innerWidth - 80;
-    floatingBallState.currentY = (window.innerHeight - 60) / 2;
+    floatingBallState.currentX = window.innerWidth - 40;
+    floatingBallState.currentY = (window.innerHeight - 30) / 2;
   }
 
   ball.style.left = floatingBallState.currentX + 'px';
@@ -133,8 +114,8 @@ function bindFloatingBallEvents(ball) {
 
   // 窗口大小变化时调整位置
   window.addEventListener('resize', () => {
-    const maxX = window.innerWidth - 60;
-    const maxY = window.innerHeight - 60;
+    const maxX = window.innerWidth - 30;
+    const maxY = window.innerHeight - 30;
     if (floatingBallState.currentX > maxX) {
       floatingBallState.currentX = maxX;
       ball.style.left = floatingBallState.currentX + 'px';
@@ -200,8 +181,8 @@ function onDragMove(e) {
   let newY = floatingBallState.initialY + deltaY;
 
   // 限制在视口内
-  const maxX = window.innerWidth - 60;
-  const maxY = window.innerHeight - 60;
+  const maxX = window.innerWidth - 30;
+  const maxY = window.innerHeight - 30;
   newX = Math.min(Math.max(0, newX), maxX);
   newY = Math.min(Math.max(0, newY), maxY);
 

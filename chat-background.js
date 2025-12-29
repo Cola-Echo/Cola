@@ -1,12 +1,13 @@
 /**
  * 聊天背景功能模块
- * 支持每个联系人独立设置背景，含图片裁剪功能
+ * 支持每个联系人/群聊独立设置背景，含图片裁剪功能
  */
 
 import { requestSave } from './save-manager.js';
 import { getSettings } from './config.js';
 import { showToast } from './toast.js';
 import { currentChatIndex } from './chat.js';
+import { isInGroupChat, getCurrentGroupIndex } from './group-chat.js';
 
 // 裁剪器状态
 let cropperState = {
@@ -76,12 +77,19 @@ export function showChatBgPanel() {
 
   if (!panel || !preview) return;
 
-  // 获取当前联系人的背景
+  // 获取当前聊天对象的背景（支持群聊和私聊）
   const settings = getSettings();
-  const contact = settings.contacts[currentChatIndex];
+  let chatTarget = null;
 
-  if (contact?.chatBackground) {
-    preview.innerHTML = `<img src="${contact.chatBackground}" alt="背景预览">`;
+  if (isInGroupChat()) {
+    const groupIndex = getCurrentGroupIndex();
+    chatTarget = settings.groupChats?.[groupIndex];
+  } else {
+    chatTarget = settings.contacts[currentChatIndex];
+  }
+
+  if (chatTarget?.chatBackground) {
+    preview.innerHTML = `<img src="${chatTarget.chatBackground}" alt="背景预览">`;
   } else {
     preview.innerHTML = '<span class="wechat-chat-bg-placeholder">暂无背景</span>';
   }
@@ -367,14 +375,21 @@ function confirmCrop() {
 // 保存聊天背景
 function saveChatBackground(imageData) {
   const settings = getSettings();
-  const contact = settings.contacts[currentChatIndex];
+  let chatTarget = null;
 
-  if (!contact) {
+  if (isInGroupChat()) {
+    const groupIndex = getCurrentGroupIndex();
+    chatTarget = settings.groupChats?.[groupIndex];
+  } else {
+    chatTarget = settings.contacts[currentChatIndex];
+  }
+
+  if (!chatTarget) {
     showToast('保存失败', '⚠️');
     return;
   }
 
-  contact.chatBackground = imageData;
+  chatTarget.chatBackground = imageData;
   requestSave();
 
   // 立即应用背景
@@ -385,11 +400,18 @@ function saveChatBackground(imageData) {
 // 清除聊天背景
 function clearChatBackground() {
   const settings = getSettings();
-  const contact = settings.contacts[currentChatIndex];
+  let chatTarget = null;
 
-  if (!contact) return;
+  if (isInGroupChat()) {
+    const groupIndex = getCurrentGroupIndex();
+    chatTarget = settings.groupChats?.[groupIndex];
+  } else {
+    chatTarget = settings.contacts[currentChatIndex];
+  }
 
-  delete contact.chatBackground;
+  if (!chatTarget) return;
+
+  delete chatTarget.chatBackground;
   requestSave();
 
   // 清除背景
@@ -424,6 +446,18 @@ export function loadContactBackground(contactIndex) {
 
   if (contact?.chatBackground) {
     applyChatBackground(contact.chatBackground);
+  } else {
+    applyChatBackground(null);
+  }
+}
+
+// 加载群聊背景（openGroupChat时调用）
+export function loadGroupBackground(groupIndex) {
+  const settings = getSettings();
+  const groupChat = settings.groupChats?.[groupIndex];
+
+  if (groupChat?.chatBackground) {
+    applyChatBackground(groupChat.chatBackground);
   } else {
     applyChatBackground(null);
   }

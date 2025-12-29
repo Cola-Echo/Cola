@@ -12,6 +12,7 @@ import { getSTChatContext, HAKIMI_HEADER } from './ai.js';
 import { playMusic as kugouPlayMusic } from './music.js';
 import { showMessageMenu } from './message-menu.js';
 import { showGroupRedPacketDetail } from './group-red-packet.js';
+import { loadGroupBackground } from './chat-background.js';
 
 // 当前群聊的索引
 export let currentGroupChatIndex = -1;
@@ -631,6 +632,9 @@ export function openGroupChat(groupIndex) {
   messagesContainer.dataset.isGroup = 'true';
   messagesContainer.dataset.groupIndex = groupIndex;
   console.log('[可乐] 群聊标记已设置:', { isGroup: messagesContainer.dataset.isGroup, groupIndex: messagesContainer.dataset.groupIndex });
+
+  // 加载群聊背景
+  loadGroupBackground(groupIndex);
 }
 
 // 渲染群聊历史
@@ -1757,7 +1761,7 @@ function buildSingleCharacterPrompt(member, groupChat, members, silentCharacters
 4. 保持角色性格特点，回复要符合你的人设
 5. 可以使用表情符号
 6. 必须回复至少一条消息，哪怕只是"嗯"、"哦"、表情符号等简短回应
-7. 语音消息格式：[语音:内容]
+7. 语音消息格式：[语音:实际说的话]（是你说的具体话语，不是声音描述！）
 8. 语音消息必须独立发送，不能和其他消息混在一起
 
 【交错显示机制】

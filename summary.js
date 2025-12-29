@@ -323,11 +323,11 @@ export function generateSummaryPrompt(allChats, cupNumber) {
 - 不要使用markdown代码块
 - 直接以 { 开头，以 } 结尾
 - keys: 3-5个能代表本次聊天核心内容的关键词（人名、地点、事件等）
-- content: 原样复制的对话记录，每条一行，格式为"发言者: 内容"
+- content: 以"以下是线上聊天内容："开头，然后原样复制对话记录，每条一行，格式为"发言者: 内容"
 - comment: "${getCupName(cupNumber)}"
 
 【JSON示例】
-{"keys":["公园","约会","周末"],"content":"{{user}}: 今天去哪玩？\\n{{char}}: 去公园吧\\n{{user}}: 好呀\\n{{char}}: 那我们下午2点见","comment":"${getCupName(cupNumber)}"}
+{"keys":["公园","约会","周末"],"content":"以下是线上聊天内容：\\n{{user}}: 今天去哪玩？\\n{{char}}: 去公园吧\\n{{user}}: 好呀\\n{{char}}: 那我们下午2点见","comment":"${getCupName(cupNumber)}"}
 
 `;
   }

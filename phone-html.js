@@ -1312,6 +1312,17 @@ function generateGiftPageHTML() {
       </div>
     </div>
 
+    <!-- 加急配送弹窗 -->
+    <div id="wechat-express-delivery-modal" class="wechat-modal hidden">
+      <div class="wechat-express-modal-content">
+        <div class="wechat-express-text">您要加急配送吗（100元）？</div>
+        <div class="wechat-express-actions">
+          <button class="wechat-express-btn confirm" id="wechat-express-yes">确认</button>
+          <button class="wechat-express-btn cancel" id="wechat-express-no">取消</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 礼物送达询问弹窗 -->
     <div id="wechat-gift-arrival-modal" class="wechat-modal hidden">
       <div class="wechat-modal-content wechat-gift-arrival-content">
