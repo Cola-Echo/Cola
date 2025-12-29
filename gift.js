@@ -43,9 +43,9 @@ const GIFT_CATEGORIES = {
       { id: 'breastChain', name: '微电流乳链', emoji: '⚡', desc: '微电流乳链', hasControl: true, hasShock: true },
       { id: 'analPlug', name: '肛塞', emoji: '🔌', desc: '震动肛塞', hasControl: true, hasShock: false },
       { id: 'cockRing', name: '锁精环', emoji: '💍', desc: '震动锁精环', hasControl: true, hasShock: false },
-      { id: 'handcuffs', name: '手铐', emoji: '⛓️', desc: '情趣手铐', hasControl: false },
-      { id: 'blindfold', name: '眼罩', emoji: '🎭', desc: '丝绸眼罩', hasControl: false },
-      { id: 'whip', name: '皮鞭', emoji: '🏇', desc: '轻柔的皮鞭', hasControl: false },
+      { id: 'breastPump', name: '吸奶器', emoji: '🍼', desc: '电动吸奶器', hasControl: true, hasShock: false },
+      { id: 'clitSucker', name: '阴蒂吮吸器', emoji: '💋', desc: '吮吸震动二合一', hasControl: true, hasShock: false },
+      { id: 'butterfly', name: '穿戴式小蝴蝶', emoji: '🦋', desc: '隐蔽穿戴震动', hasControl: true, hasShock: false },
       { id: 'collar', name: '项圈', emoji: '⭕', desc: '精致的项圈', hasControl: false },
       { id: 'candle', name: '低温蜡烛', emoji: '🕯️', desc: '安全的低温蜡烛', hasControl: false },
       { id: 'lingerie', name: '情趣内衣', emoji: '👙', desc: '性感的情趣内衣', hasControl: false }

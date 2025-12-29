@@ -24,10 +24,22 @@ const TOY_ICONS = {
   cameraOn: `<svg viewBox="0 0 24 24" width="28" height="28"><path d="M23 7l-7 5 7 5V7z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`,
   cameraOff: `<svg viewBox="0 0 24 24" width="28" height="28"><path d="M23 7l-7 5 7 5V7z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`,
   // 像素爱心图标（用于多玩具切换）
-  pixelHeart: `<svg viewBox="0 0 16 16" width="24" height="24"><rect x="2" y="4" width="2" height="2" fill="currentColor"/><rect x="4" y="2" width="2" height="2" fill="currentColor"/><rect x="6" y="2" width="2" height="2" fill="currentColor"/><rect x="8" y="2" width="2" height="2" fill="currentColor"/><rect x="10" y="2" width="2" height="2" fill="currentColor"/><rect x="12" y="4" width="2" height="2" fill="currentColor"/><rect x="2" y="6" width="2" height="2" fill="currentColor"/><rect x="4" y="4" width="2" height="2" fill="currentColor"/><rect x="6" y="4" width="2" height="2" fill="currentColor"/><rect x="8" y="4" width="2" height="2" fill="currentColor"/><rect x="10" y="4" width="2" height="2" fill="currentColor"/><rect x="12" y="6" width="2" height="2" fill="currentColor"/><rect x="2" y="8" width="2" height="2" fill="currentColor"/><rect x="4" y="6" width="2" height="2" fill="currentColor"/><rect x="6" y="6" width="2" height="2" fill="currentColor"/><rect x="8" y="6" width="2" height="2" fill="currentColor"/><rect x="10" y="6" width="2" height="2" fill="currentColor"/><rect x="12" y="8" width="2" height="2" fill="currentColor"/><rect x="4" y="8" width="2" height="2" fill="currentColor"/><rect x="6" y="8" width="2" height="2" fill="currentColor"/><rect x="8" y="8" width="2" height="2" fill="currentColor"/><rect x="10" y="8" width="2" height="2" fill="currentColor"/><rect x="6" y="10" width="2" height="2" fill="currentColor"/><rect x="8" y="10" width="2" height="2" fill="currentColor"/><rect x="4" y="10" width="2" height="2" fill="currentColor"/><rect x="10" y="10" width="2" height="2" fill="currentColor"/><rect x="6" y="12" width="4" height="2" fill="currentColor"/></svg>`
+  pixelHeart: `<svg viewBox="0 0 16 16" width="24" height="24"><rect x="2" y="4" width="2" height="2" fill="currentColor"/><rect x="4" y="2" width="2" height="2" fill="currentColor"/><rect x="6" y="2" width="2" height="2" fill="currentColor"/><rect x="8" y="2" width="2" height="2" fill="currentColor"/><rect x="10" y="2" width="2" height="2" fill="currentColor"/><rect x="12" y="4" width="2" height="2" fill="currentColor"/><rect x="2" y="6" width="2" height="2" fill="currentColor"/><rect x="4" y="4" width="2" height="2" fill="currentColor"/><rect x="6" y="4" width="2" height="2" fill="currentColor"/><rect x="8" y="4" width="2" height="2" fill="currentColor"/><rect x="10" y="4" width="2" height="2" fill="currentColor"/><rect x="12" y="6" width="2" height="2" fill="currentColor"/><rect x="2" y="8" width="2" height="2" fill="currentColor"/><rect x="4" y="6" width="2" height="2" fill="currentColor"/><rect x="6" y="6" width="2" height="2" fill="currentColor"/><rect x="8" y="6" width="2" height="2" fill="currentColor"/><rect x="10" y="6" width="2" height="2" fill="currentColor"/><rect x="12" y="8" width="2" height="2" fill="currentColor"/><rect x="4" y="8" width="2" height="2" fill="currentColor"/><rect x="6" y="8" width="2" height="2" fill="currentColor"/><rect x="8" y="8" width="2" height="2" fill="currentColor"/><rect x="10" y="8" width="2" height="2" fill="currentColor"/><rect x="6" y="10" width="2" height="2" fill="currentColor"/><rect x="8" y="10" width="2" height="2" fill="currentColor"/><rect x="4" y="10" width="2" height="2" fill="currentColor"/><rect x="10" y="10" width="2" height="2" fill="currentColor"/><rect x="6" y="12" width="4" height="2" fill="currentColor"/></svg>`,
+  // 吮吸类玩具图标
+  gentle: `<svg viewBox="0 0 24 24" width="28" height="28"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>`,
+  strong: `<svg viewBox="0 0 24 24" width="28" height="28"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>`,
+  pulse: `<svg viewBox="0 0 24 24" width="28" height="28"><circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="currentColor"/><circle cx="18" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`
 };
 
-// 控制模式定义
+// 吮吸类玩具ID列表
+const SUCTION_TOY_IDS = ['breastPump', 'clitSucker'];
+
+// 判断是否是吮吸类玩具
+function isSuctionToy(giftId) {
+  return SUCTION_TOY_IDS.includes(giftId);
+}
+
+// 震动类控制模式定义
 const TOY_CONTROL_MODES = {
   classic: {
     id: 'classic',
@@ -58,6 +70,40 @@ const TOY_CONTROL_MODES = {
     name: '暂停',
     icon: TOY_ICONS.pause,
     desc: '暂停震动'
+  }
+};
+
+// 吮吸类控制模式定义
+const SUCTION_CONTROL_MODES = {
+  gentle: {
+    id: 'gentle',
+    name: '轻柔吮吸',
+    icon: TOY_ICONS.gentle,
+    desc: '温柔的吮吸节奏'
+  },
+  start: {
+    id: 'start',
+    name: '开始吮吸',
+    icon: TOY_ICONS.start,
+    desc: '开始/继续吮吸'
+  },
+  strong: {
+    id: 'strong',
+    name: '强力吮吸',
+    icon: TOY_ICONS.strong,
+    desc: '高强度吮吸'
+  },
+  pulse: {
+    id: 'pulse',
+    name: '脉冲模式',
+    icon: TOY_ICONS.pulse,
+    desc: '有节奏的吸放'
+  },
+  pause: {
+    id: 'pause',
+    name: '暂停',
+    icon: TOY_ICONS.pause,
+    desc: '暂停吮吸'
   }
 };
 
@@ -178,40 +224,82 @@ function renderToyControlPage() {
     titleEl.textContent = `${toyControlState.gift.giftName} · ${targetText}`;
   }
 
+  // 判断当前玩具类型
+  const isSuction = isSuctionToy(toyControlState.gift.giftId);
+  const modes = isSuction ? SUCTION_CONTROL_MODES : TOY_CONTROL_MODES;
+
   // 渲染按钮
   if (buttonsEl) {
-    let buttonsHtml = `
-      <div class="wechat-toy-btn-row">
-        <button class="wechat-toy-btn" data-mode="classic">
-          ${TOY_CONTROL_MODES.classic.icon}
-          <span class="wechat-toy-btn-label">${TOY_CONTROL_MODES.classic.name}</span>
-        </button>
-        <button class="wechat-toy-btn" data-mode="start">
-          ${TOY_CONTROL_MODES.start.icon}
-          <span class="wechat-toy-btn-label">${TOY_CONTROL_MODES.start.name}</span>
-        </button>
-        <button class="wechat-toy-btn" data-mode="rampage">
-          ${TOY_CONTROL_MODES.rampage.icon}
-          <span class="wechat-toy-btn-label">${TOY_CONTROL_MODES.rampage.name}</span>
-        </button>
-      </div>
-      <div class="wechat-toy-btn-row">
-        <button class="wechat-toy-btn wechat-toy-btn-media" data-media="mic" title="麦克风">
-          ${toyControlState.micEnabled ? TOY_ICONS.micOn : TOY_ICONS.micOff}
-        </button>
-        <button class="wechat-toy-btn" data-mode="wave">
-          ${TOY_CONTROL_MODES.wave.icon}
-          <span class="wechat-toy-btn-label">${TOY_CONTROL_MODES.wave.name}</span>
-        </button>
-        <button class="wechat-toy-btn" data-mode="pause">
-          ${TOY_CONTROL_MODES.pause.icon}
-          <span class="wechat-toy-btn-label">${TOY_CONTROL_MODES.pause.name}</span>
-        </button>
-        <button class="wechat-toy-btn wechat-toy-btn-media" data-media="camera" title="摄像头">
-          ${toyControlState.cameraEnabled ? TOY_ICONS.cameraOn : TOY_ICONS.cameraOff}
-        </button>
-      </div>
-    `;
+    let buttonsHtml;
+    if (isSuction) {
+      // 吮吸类玩具按钮布局
+      buttonsHtml = `
+        <div class="wechat-toy-btn-row">
+          <button class="wechat-toy-btn" data-mode="gentle">
+            ${modes.gentle.icon}
+            <span class="wechat-toy-btn-label">${modes.gentle.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="start">
+            ${modes.start.icon}
+            <span class="wechat-toy-btn-label">${modes.start.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="strong">
+            ${modes.strong.icon}
+            <span class="wechat-toy-btn-label">${modes.strong.name}</span>
+          </button>
+        </div>
+        <div class="wechat-toy-btn-row">
+          <button class="wechat-toy-btn wechat-toy-btn-media" data-media="mic" title="麦克风">
+            ${toyControlState.micEnabled ? TOY_ICONS.micOn : TOY_ICONS.micOff}
+          </button>
+          <button class="wechat-toy-btn" data-mode="pulse">
+            ${modes.pulse.icon}
+            <span class="wechat-toy-btn-label">${modes.pulse.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="pause">
+            ${modes.pause.icon}
+            <span class="wechat-toy-btn-label">${modes.pause.name}</span>
+          </button>
+          <button class="wechat-toy-btn wechat-toy-btn-media" data-media="camera" title="摄像头">
+            ${toyControlState.cameraEnabled ? TOY_ICONS.cameraOn : TOY_ICONS.cameraOff}
+          </button>
+        </div>
+      `;
+    } else {
+      // 震动类玩具按钮布局（原有）
+      buttonsHtml = `
+        <div class="wechat-toy-btn-row">
+          <button class="wechat-toy-btn" data-mode="classic">
+            ${modes.classic.icon}
+            <span class="wechat-toy-btn-label">${modes.classic.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="start">
+            ${modes.start.icon}
+            <span class="wechat-toy-btn-label">${modes.start.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="rampage">
+            ${modes.rampage.icon}
+            <span class="wechat-toy-btn-label">${modes.rampage.name}</span>
+          </button>
+        </div>
+        <div class="wechat-toy-btn-row">
+          <button class="wechat-toy-btn wechat-toy-btn-media" data-media="mic" title="麦克风">
+            ${toyControlState.micEnabled ? TOY_ICONS.micOn : TOY_ICONS.micOff}
+          </button>
+          <button class="wechat-toy-btn" data-mode="wave">
+            ${modes.wave.icon}
+            <span class="wechat-toy-btn-label">${modes.wave.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="pause">
+            ${modes.pause.icon}
+            <span class="wechat-toy-btn-label">${modes.pause.name}</span>
+          </button>
+          <button class="wechat-toy-btn wechat-toy-btn-media" data-media="camera" title="摄像头">
+            ${toyControlState.cameraEnabled ? TOY_ICONS.cameraOn : TOY_ICONS.cameraOff}
+          </button>
+        </div>
+      `;
+    }
     buttonsEl.innerHTML = buttonsHtml;
   }
 
@@ -469,14 +557,26 @@ ${newToy.giftName}的特点：${newToy.giftDesc}
     hideToyTypingIndicator();
 
     if (response) {
-      let reply = response.trim();
-      reply = reply.replace(/<\s*meme\s*>[\s\S]*?<\s*\/\s*meme\s*>/gi, '').trim();
-      reply = reply.replace(/\[.*?\]/g, '').trim();
-      reply = reply.replace(/（[^）]*）/g, '').trim();
-      reply = reply.replace(/\([^)]*\)/g, '').trim();
+      // 使用 splitAIMessages 分割多条消息
+      const parts = splitAIMessages(response);
 
-      if (reply) {
-        addToyMessage('ai', reply);
+      for (let i = 0; i < parts.length; i++) {
+        let reply = parts[i].trim();
+        reply = reply.replace(/<\s*meme\s*>[\s\S]*?<\s*\/\s*meme\s*>/gi, '').trim();
+        reply = reply.replace(/\[.*?\]/g, '').trim();
+        reply = reply.replace(/（[^）]*）/g, '').trim();
+        reply = reply.replace(/\([^)]*\)/g, '').trim();
+
+        // 如果不是第一条消息，显示typing并延迟
+        if (i > 0 && reply) {
+          showToyTypingIndicator();
+          await sleep(1500 + Math.random() * 1000);
+          hideToyTypingIndicator();
+        }
+
+        if (reply) {
+          addToyMessage('ai', reply);
+        }
       }
     }
   } catch (err) {
@@ -682,8 +782,19 @@ function updateButtonState(buttonId) {
 function buildButtonPressPrompt(buttonId, buttonName, pressedBy) {
   const isCharacterUsing = toyControlState.target === 'character';
   const isAIPress = pressedBy === 'ai';
+  const isSuction = isSuctionToy(toyControlState.gift.giftId);
 
-  const modeEffects = {
+  // 根据玩具类型选择效果描述
+  const modeEffects = isSuction ? {
+    // 吮吸类玩具效果
+    gentle: '轻柔的吮吸开始了，温柔地包裹着敏感部位',
+    start: '吮吸开始/继续了',
+    strong: '吮吸力度突然加大，强烈的吸力让人难以抗拒',
+    pulse: '有节奏的吸放开始了，一收一放的刺激',
+    pause: '吮吸停止了，可以喘息一下',
+    shock: '一阵微电流刺激瞬间传来，让人猛地一颤'
+  } : {
+    // 震动类玩具效果
     classic: '稳定持续的震动开始了',
     start: '震动开始/继续了',
     rampage: '震动突然变到最大强度，非常强烈的刺激袭来',
