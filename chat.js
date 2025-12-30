@@ -262,6 +262,9 @@ async function triggerAIAfterUnblock(contact) {
 // 存储被拉黑期间AI发送的消息的定时器
 const blockedAITimers = new Map();
 
+// 被拉黑期间AI最多发送的消息数量
+const BLOCKED_MAX_MESSAGES = 10;
+
 // 用户拉黑AI时开始AI发消息
 export function startBlockedAIMessages(contact) {
   if (!contact || !contact.id) return;
@@ -269,10 +272,8 @@ export function startBlockedAIMessages(contact) {
   // 清除之前的定时器
   stopBlockedAIMessages(contact);
 
-  // 初始化被拉黑期间的消息队列
-  if (!contact.blockedMessages) {
-    contact.blockedMessages = [];
-  }
+  // 清空之前的消息队列（修复二次拉黑重复发送的bug）
+  contact.blockedMessages = [];
 
   // 开始定时发送消息
   const timerId = setInterval(async () => {
@@ -281,9 +282,16 @@ export function startBlockedAIMessages(contact) {
       return;
     }
 
+    // 检查是否已达到最大消息数
+    const msgCount = contact.blockedMessages?.length || 0;
+    if (msgCount >= BLOCKED_MAX_MESSAGES) {
+      console.log('[可乐] AI被拉黑期间已发送10条消息，停止发送');
+      stopBlockedAIMessages(contact);
+      return;
+    }
+
     try {
       const { callAI } = await import('./ai.js');
-      const msgCount = contact.blockedMessages.length;
       let prompt;
 
       if (msgCount === 0) {
@@ -302,6 +310,11 @@ export function startBlockedAIMessages(contact) {
 
       for (const msg of aiMessages) {
         if (!msg.trim()) continue;
+
+        // 检查是否已达到最大消息数
+        if ((contact.blockedMessages?.length || 0) >= BLOCKED_MAX_MESSAGES) {
+          break;
+        }
 
         // 解析引用格式
         const parsed = parseAIQuote(msg, contact);
@@ -472,7 +485,7 @@ export function checkGroupSummaryReminder(groupChat) {
   }
 }
 
-// 解析用户表情包 token -> URL
+// 解析用户表情包 token -> URL（支持同名随机选择）
 function resolveUserStickerUrl(token, settings) {
   if (settings.userStickersEnabled === false) return null;
   const stickers = getUserStickers(settings);
@@ -481,23 +494,34 @@ function resolveUserStickerUrl(token, settings) {
   const raw = (token || '').toString().trim();
   if (!raw) return null;
 
-  // 序号匹配
+  // 序号匹配（仍支持，但不推荐，因为同名表情存在时序号不稳定）
   if (/^\d+$/.test(raw)) {
     const index = parseInt(raw, 10) - 1;
     return stickers[index]?.url || null;
   }
 
-  // 名称匹配
   const key = raw.toLowerCase();
-  const byName = stickers.find(s => (s?.name || '').toLowerCase() === key);
-  if (byName?.url) return byName.url;
 
-  // 模糊匹配
-  const fuzzy = stickers.find(s => {
+  // 精确名称匹配 - 找到所有同名的表情
+  const exactMatches = stickers.filter(s => (s?.name || '').toLowerCase() === key);
+  if (exactMatches.length > 0) {
+    // 随机选择一个
+    const randomIndex = Math.floor(Math.random() * exactMatches.length);
+    return exactMatches[randomIndex]?.url || null;
+  }
+
+  // 模糊匹配 - 找到所有匹配的表情
+  const fuzzyMatches = stickers.filter(s => {
     const name = (s?.name || '').toLowerCase();
     return name && (name.includes(key) || key.includes(name));
   });
-  return fuzzy?.url || null;
+  if (fuzzyMatches.length > 0) {
+    // 随机选择一个
+    const randomIndex = Math.floor(Math.random() * fuzzyMatches.length);
+    return fuzzyMatches[randomIndex]?.url || null;
+  }
+
+  return null;
 }
 
 // 去除引用内容中的简单重复模式
@@ -1117,14 +1141,12 @@ export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
     const isPhoto = msg.isPhoto === true;
     const isMusic = msg.isMusic === true;
 
-    // 检查是否包含 ||| 分隔符（历史消息可能未正确分割）
+    // 检查是否包含 ||| 分隔符或 meme 标签（历史消息可能未正确分割）
     // 如果包含，则拆分成多个独立消息，每个都有自己的头像
     const msgContent = (msg.content || '').toString();
     if (!isVoice && !isSticker && !isPhoto && !isMusic && (msgContent.indexOf('|||') >= 0 || /<\s*meme\s*>/i.test(msgContent))) {
-      const parts = (msgContent.indexOf('|||') >= 0
-        ? msgContent.split('|||').map(function(p) { return p.trim(); }).filter(function(p) { return p; })
-        : splitAIMessages(msgContent).map(function(p) { return (p || '').toString().trim(); }).filter(function(p) { return p; })
-      );
+      // 统一使用 splitAIMessages 分割，它会处理 ||| 和 meme 标签
+      const parts = splitAIMessages(msgContent).map(function(p) { return (p || '').toString().trim(); }).filter(function(p) { return p; });
       for (var pi = 0; pi < parts.length; pi++) {
         var partContent = parts[pi];
         // 解析 meme 标签
@@ -1889,6 +1911,20 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
       let stickerUrl = null;
       let aiQuote = null;
 
+      // 如果用户被AI拉黑，过滤掉AI不能执行的操作（只能发文字和表情包）
+      if (contact.blockedByAI === true) {
+        // 过滤拉黑标签（已经拉黑了不能再拉黑）
+        aiMsg = aiMsg.replace(/\[拉黑\]/g, '');
+        // 过滤通话请求
+        aiMsg = aiMsg.replace(/\[(?:语音通话|视频通话|语音通话请求|视频通话请求|通话请求)\]/g, '');
+        // 过滤红包和转账
+        aiMsg = aiMsg.replace(/\[红包[：:]\d+(?:\.\d{1,2})?[：:]?.*?\]/g, '');
+        aiMsg = aiMsg.replace(/\[转账[：:]\d+(?:\.\d{1,2})?[：:]?.*?\]/g, '');
+        aiMsg = aiMsg.trim();
+        // 如果过滤后消息为空，跳过
+        if (!aiMsg) continue;
+      }
+
       // 检测拉黑/取消拉黑标签
       const blockAction = extractBlockAction(aiMsg);
       if (blockAction.action === 'block') {
@@ -2148,7 +2184,8 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
       }
 
       // 解析AI表情包格式 [表情:序号] / [表情:名称]
-      const stickerMatch = aiMsg.match(/^\[表情[：:]\s*(.+?)\]$/);
+      // 首先检查是否是独立的表情消息
+      const stickerMatch = aiMsg.match(/^\[表情\s*[：:∶]\s*(.+?)\]$/);
       console.log('[可乐] AI表情包解析:', {
         原始消息: aiMsg,
         正则匹配结果: stickerMatch,
@@ -2167,6 +2204,50 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
           });
         } else {
           console.log('[可乐] AI表情包未找到对应表情:', { token });
+        }
+      } else {
+        // 【后备处理】如果不是独立表情消息，检查是否包含嵌入的表情标签
+        // 这可以处理 AI 输出 "好的[表情:开心]" 这种未被 splitAIMessages 正确分割的情况
+        const embeddedStickerMatch = aiMsg.match(/\[表情\s*[：:∶]\s*(.+?)\]/);
+        if (embeddedStickerMatch) {
+          console.log('[可乐] 检测到嵌入的表情标签，进行内联分割:', aiMsg);
+          const stickerTag = embeddedStickerMatch[0];
+          const stickerIndex = aiMsg.indexOf(stickerTag);
+          const beforeText = aiMsg.substring(0, stickerIndex).trim();
+          const afterText = aiMsg.substring(stickerIndex + stickerTag.length).trim();
+
+          // 如果表情前有文字，先处理文字部分（当前循环）
+          // 把表情标签和后续文字插入到 aiMessages 队列中
+          if (beforeText || afterText) {
+            // 修改当前消息为表情前的文字
+            if (beforeText) {
+              aiMsg = beforeText;
+            } else {
+              // 如果没有前置文字，当前消息就是表情
+              aiMsg = stickerTag;
+              const settings = getSettings();
+              const token = (embeddedStickerMatch[1] || '').trim();
+              stickerUrl = resolveUserStickerUrl(token, settings);
+              if (stickerUrl) {
+                aiIsSticker = true;
+              }
+            }
+
+            // 把剩余部分插入到消息队列
+            const remainingParts = [];
+            if (beforeText) {
+              remainingParts.push(stickerTag); // 表情标签
+            }
+            if (afterText) {
+              remainingParts.push(afterText);
+            }
+
+            // 插入到当前位置之后
+            if (remainingParts.length > 0) {
+              aiMessages.splice(i + 1, 0, ...remainingParts);
+              console.log('[可乐] 已将嵌入表情分割，剩余部分:', remainingParts);
+            }
+          }
         }
       }
 
@@ -2313,7 +2394,7 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
     const lastPhotoMatch = lastAiMsg.match(/^\[照片[：:]\s*(.+?)\]$/);
     const lastMusicMatch = lastAiMsg.match(/^\[(?:分享)?音乐[：:]\s*(.+?)\]$/) ||
                            lastAiMsg.match(/^\[分享音乐\]\s*\*{0,2}[^*\n]+/);
-    const lastStickerMatch = lastAiMsg.match(/^\[表情[：:]\s*(.+?)\]$/);
+    const lastStickerMatch = lastAiMsg.match(/^\[表情\s*[：:∶]\s*(.+?)\]$/);
     const lastStickerUrl = lastStickerMatch ? resolveUserStickerUrl(lastStickerMatch[1], getSettings()) : null;
     if (lastVoiceMatch) {
       lastAiMsg = lastVoiceMatch[1];
@@ -2412,6 +2493,16 @@ export async function sendStickerMessage(stickerUrl, description = '') {
       let aiIsSticker = false;
       let aiIsPhoto = false;
       let stickerUrl = null;
+
+      // 如果用户被AI拉黑，过滤掉AI不能执行的操作（只能发文字和表情包）
+      if (contact.blockedByAI === true) {
+        aiMsg = aiMsg.replace(/\[拉黑\]/g, '');
+        aiMsg = aiMsg.replace(/\[(?:语音通话|视频通话|语音通话请求|视频通话请求|通话请求)\]/g, '');
+        aiMsg = aiMsg.replace(/\[红包[：:]\d+(?:\.\d{1,2})?[：:]?.*?\]/g, '');
+        aiMsg = aiMsg.replace(/\[转账[：:]\d+(?:\.\d{1,2})?[：:]?.*?\]/g, '');
+        aiMsg = aiMsg.trim();
+        if (!aiMsg) continue;
+      }
 
       // 检测拉黑/取消拉黑标签
       const blockAction = extractBlockAction(aiMsg);
@@ -2518,7 +2609,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
       }
 
       // 解析AI表情包格式 [表情:序号] / [表情:名称]
-      const stickerMatch = aiMsg.match(/^\[表情[：:]\s*(.+?)\]$/);
+      const stickerMatch = aiMsg.match(/^\[表情\s*[：:∶]\s*(.+?)\]$/);
       console.log('[可乐] sendStickerMessage AI表情包解析:', {
         原始消息: aiMsg,
         正则匹配结果: stickerMatch
@@ -2531,6 +2622,35 @@ export async function sendStickerMessage(stickerUrl, description = '') {
           resolved: !!stickerUrl
         });
         if (stickerUrl) aiIsSticker = true;
+      } else {
+        // 【后备处理】检查是否包含嵌入的表情标签
+        const embeddedStickerMatch = aiMsg.match(/\[表情\s*[：:∶]\s*(.+?)\]/);
+        if (embeddedStickerMatch) {
+          console.log('[可乐] sendStickerMessage 检测到嵌入的表情标签:', aiMsg);
+          const stickerTag = embeddedStickerMatch[0];
+          const stickerIndex = aiMsg.indexOf(stickerTag);
+          const beforeText = aiMsg.substring(0, stickerIndex).trim();
+          const afterText = aiMsg.substring(stickerIndex + stickerTag.length).trim();
+
+          if (beforeText || afterText) {
+            if (beforeText) {
+              aiMsg = beforeText;
+            } else {
+              aiMsg = stickerTag;
+              const token = (embeddedStickerMatch[1] || '').trim();
+              stickerUrl = resolveUserStickerUrl(token, settings);
+              if (stickerUrl) aiIsSticker = true;
+            }
+
+            const remainingParts = [];
+            if (beforeText) remainingParts.push(stickerTag);
+            if (afterText) remainingParts.push(afterText);
+
+            if (remainingParts.length > 0) {
+              aiMessages.splice(i + 1, 0, ...remainingParts);
+            }
+          }
+        }
       }
 
       // 检查用户是否还在当前聊天界面
@@ -2640,7 +2760,7 @@ export async function sendStickerMessage(stickerUrl, description = '') {
     let lastAiMsg = aiMessages[aiMessages.length - 1];
     const lastVoiceMatch = lastAiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
     const lastPhotoMatch = lastAiMsg.match(/^\[照片[：:]\s*(.+?)\]$/);
-    const lastStickerMatch = lastAiMsg.match(/^\[表情[：:]\s*(.+?)\]$/);
+    const lastStickerMatch = lastAiMsg.match(/^\[表情\s*[：:∶]\s*(.+?)\]$/);
     const lastStickerUrl = lastStickerMatch ? resolveUserStickerUrl(lastStickerMatch[1], getSettings()) : null;
     if (lastVoiceMatch) {
       lastAiMsg = lastVoiceMatch[1];
@@ -2821,6 +2941,16 @@ export async function sendPhotoMessage(description) {
       let aiIsPhoto = false;
       let stickerUrl = null;
 
+      // 如果用户被AI拉黑，过滤掉AI不能执行的操作（只能发文字和表情包）
+      if (contact.blockedByAI === true) {
+        aiMsg = aiMsg.replace(/\[拉黑\]/g, '');
+        aiMsg = aiMsg.replace(/\[(?:语音通话|视频通话|语音通话请求|视频通话请求|通话请求)\]/g, '');
+        aiMsg = aiMsg.replace(/\[红包[：:]\d+(?:\.\d{1,2})?[：:]?.*?\]/g, '');
+        aiMsg = aiMsg.replace(/\[转账[：:]\d+(?:\.\d{1,2})?[：:]?.*?\]/g, '');
+        aiMsg = aiMsg.trim();
+        if (!aiMsg) continue;
+      }
+
       // 检测拉黑/取消拉黑标签
       const blockAction = extractBlockAction(aiMsg);
       if (blockAction.action === 'block') {
@@ -2926,7 +3056,7 @@ export async function sendPhotoMessage(description) {
       }
 
       // 解析AI表情包格式 [表情:序号] / [表情:名称]
-      const stickerMatch = aiMsg.match(/^\[表情[：:]\s*(.+?)\]$/);
+      const stickerMatch = aiMsg.match(/^\[表情\s*[：:∶]\s*(.+?)\]$/);
       console.log('[可乐] sendPhotoMessage AI表情包解析:', {
         原始消息: aiMsg,
         正则匹配结果: stickerMatch
@@ -2939,6 +3069,35 @@ export async function sendPhotoMessage(description) {
           resolved: !!stickerUrl
         });
         if (stickerUrl) aiIsSticker = true;
+      } else {
+        // 【后备处理】检查是否包含嵌入的表情标签
+        const embeddedStickerMatch = aiMsg.match(/\[表情\s*[：:∶]\s*(.+?)\]/);
+        if (embeddedStickerMatch) {
+          console.log('[可乐] sendPhotoMessage 检测到嵌入的表情标签:', aiMsg);
+          const stickerTag = embeddedStickerMatch[0];
+          const stickerIndex = aiMsg.indexOf(stickerTag);
+          const beforeText = aiMsg.substring(0, stickerIndex).trim();
+          const afterText = aiMsg.substring(stickerIndex + stickerTag.length).trim();
+
+          if (beforeText || afterText) {
+            if (beforeText) {
+              aiMsg = beforeText;
+            } else {
+              aiMsg = stickerTag;
+              const token = (embeddedStickerMatch[1] || '').trim();
+              stickerUrl = resolveUserStickerUrl(token, settings);
+              if (stickerUrl) aiIsSticker = true;
+            }
+
+            const remainingParts = [];
+            if (beforeText) remainingParts.push(stickerTag);
+            if (afterText) remainingParts.push(afterText);
+
+            if (remainingParts.length > 0) {
+              aiMessages.splice(i + 1, 0, ...remainingParts);
+            }
+          }
+        }
       }
 
       // 检查用户是否还在当前聊天界面
@@ -3048,7 +3207,7 @@ export async function sendPhotoMessage(description) {
     let lastAiMsg = aiMessages[aiMessages.length - 1];
     const lastVoiceMatch = lastAiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
     const lastPhotoMatch = lastAiMsg.match(/^\[照片[：:]\s*(.+?)\]$/);
-    const lastStickerMatch = lastAiMsg.match(/^\[表情[：:]\s*(.+?)\]$/);
+    const lastStickerMatch = lastAiMsg.match(/^\[表情\s*[：:∶]\s*(.+?)\]$/);
     const lastStickerUrl = lastStickerMatch ? resolveUserStickerUrl(lastStickerMatch[1], getSettings()) : null;
     if (lastVoiceMatch) {
       lastAiMsg = lastVoiceMatch[1];
@@ -3331,6 +3490,16 @@ export async function sendBatchMessages(messages) {
       let stickerUrl = null;
       let aiQuote = null;
 
+      // 如果用户被AI拉黑，过滤掉AI不能执行的操作（只能发文字和表情包）
+      if (contact.blockedByAI === true) {
+        aiMsg = aiMsg.replace(/\[拉黑\]/g, '');
+        aiMsg = aiMsg.replace(/\[(?:语音通话|视频通话|语音通话请求|视频通话请求|通话请求)\]/g, '');
+        aiMsg = aiMsg.replace(/\[红包[：:]\d+(?:\.\d{1,2})?[：:]?.*?\]/g, '');
+        aiMsg = aiMsg.replace(/\[转账[：:]\d+(?:\.\d{1,2})?[：:]?.*?\]/g, '');
+        aiMsg = aiMsg.trim();
+        if (!aiMsg) continue;
+      }
+
       // 检测拉黑/取消拉黑标签
       const blockAction = extractBlockAction(aiMsg);
       if (blockAction.action === 'block') {
@@ -3453,11 +3622,40 @@ export async function sendBatchMessages(messages) {
       }
 
       // 解析表情包格式
-      const stickerMatch = aiMsg.match(/^\[表情[：:]\s*(.+?)\]$/);
+      const stickerMatch = aiMsg.match(/^\[表情\s*[：:∶]\s*(.+?)\]$/);
       if (stickerMatch) {
         const token = (stickerMatch[1] || '').trim();
         stickerUrl = resolveUserStickerUrl(token, settings);
         if (stickerUrl) aiIsSticker = true;
+      } else {
+        // 【后备处理】检查是否包含嵌入的表情标签
+        const embeddedStickerMatch = aiMsg.match(/\[表情\s*[：:∶]\s*(.+?)\]/);
+        if (embeddedStickerMatch) {
+          console.log('[可乐] sendBatchMessages 检测到嵌入的表情标签:', aiMsg);
+          const stickerTag = embeddedStickerMatch[0];
+          const stickerIndex = aiMsg.indexOf(stickerTag);
+          const beforeText = aiMsg.substring(0, stickerIndex).trim();
+          const afterText = aiMsg.substring(stickerIndex + stickerTag.length).trim();
+
+          if (beforeText || afterText) {
+            if (beforeText) {
+              aiMsg = beforeText;
+            } else {
+              aiMsg = stickerTag;
+              const token = (embeddedStickerMatch[1] || '').trim();
+              stickerUrl = resolveUserStickerUrl(token, settings);
+              if (stickerUrl) aiIsSticker = true;
+            }
+
+            const remainingParts = [];
+            if (beforeText) remainingParts.push(stickerTag);
+            if (afterText) remainingParts.push(afterText);
+
+            if (remainingParts.length > 0) {
+              aiMessages.splice(i + 1, 0, ...remainingParts);
+            }
+          }
+        }
       }
 
       // 解析引用格式
@@ -3567,7 +3765,7 @@ export async function sendBatchMessages(messages) {
     let lastAiMsg = aiMessages[aiMessages.length - 1];
     const lastVoiceMatch = lastAiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
     const lastPhotoMatch = lastAiMsg.match(/^\[照片[：:]\s*(.+?)\]$/);
-    const lastStickerMatch = lastAiMsg.match(/^\[表情[：:]\s*(.+?)\]$/);
+    const lastStickerMatch = lastAiMsg.match(/^\[表情\s*[：:∶]\s*(.+?)\]$/);
     const lastStickerUrl = lastStickerMatch ? resolveUserStickerUrl(lastStickerMatch[1], settings) : null;
     if (lastVoiceMatch) {
       lastAiMsg = lastVoiceMatch[1];

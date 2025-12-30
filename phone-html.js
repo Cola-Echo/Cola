@@ -3,7 +3,7 @@
  * 这是最长的函数，单独提取以便维护
  */
 
-import { getSettings, defaultSettings, MEME_PROMPT_TEMPLATE, MEME_STICKERS } from './config.js';
+import { getSettings, defaultSettings, MEME_STICKERS } from './config.js';
 import { getCurrentTime, escapeHtml } from './utils.js';
 import { getUserAvatarHTML, generateChatList, generateContactsList } from './ui.js';
 import { ICON_RED_PACKET, ICON_RED_PACKET_LARGE, ICON_USER } from './icons.js';

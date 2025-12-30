@@ -18,6 +18,8 @@ const ICON_GIFT_CHARACTER = `<svg viewBox="0 0 24 24" width="32" height="32"><ci
 
 const ICON_GIFT_USER = `<svg viewBox="0 0 24 24" width="32" height="32"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4 20v-2a8 8 0 0116 0v2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4 6l3 3m0-3l-3 3" stroke="#ff6b8a" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 
+const ICON_GIFT_BOTH = `<svg viewBox="0 0 24 24" width="32" height="32"><circle cx="8" cy="7" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="16" cy="7" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2 19v-1.5a5.5 5.5 0 0110 0V19" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 19v-1.5a5.5 5.5 0 0110 0V19" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 12v2" stroke="#ff6b8a" stroke-width="2" stroke-linecap="round"/></svg>`;
+
 // 礼物分类数据
 const GIFT_CATEGORIES = {
   normal: {
@@ -48,7 +50,9 @@ const GIFT_CATEGORIES = {
       { id: 'butterfly', name: '穿戴式小蝴蝶', emoji: '🦋', desc: '隐蔽穿戴震动', hasControl: true, hasShock: false },
       { id: 'collar', name: '项圈', emoji: '⭕', desc: '精致的项圈', hasControl: false },
       { id: 'candle', name: '低温蜡烛', emoji: '🕯️', desc: '安全的低温蜡烛', hasControl: false },
-      { id: 'lingerie', name: '情趣内衣', emoji: '👙', desc: '性感的情趣内衣', hasControl: false }
+      { id: 'lingerie', name: '情趣内衣', emoji: '👙', desc: '性感的情趣内衣', hasControl: false },
+      { id: 'fuckingMachine', name: '炮机', emoji: '🔧', desc: '电动炮机', hasControl: true, hasShock: false },
+      { id: 'masturbatorCup', name: '飞机杯', emoji: '🥤', desc: '电动飞机杯', hasControl: true, hasShock: false }
     ]
   }
 };
@@ -137,6 +141,10 @@ function renderGiftContent() {
           <button class="wechat-gift-target-btn ${selectedTarget === 'user' ? 'active' : ''}" data-target="user">
             ${ICON_GIFT_USER}
             <span>送用户</span>
+          </button>
+          <button class="wechat-gift-target-btn ${selectedTarget === 'both' ? 'active' : ''}" data-target="both">
+            ${ICON_GIFT_BOTH}
+            <span>同时送</span>
           </button>
         </div>
       `;
@@ -304,7 +312,7 @@ export async function sendGift() {
     const giftsToSend = [...selectedGifts];
     const giftNames = giftsToSend.map(g => g.name).join('、');
     const giftEmojis = giftsToSend.map(g => g.emoji).join(' ');
-    const targetText = target === 'character' ? '送TA' : '送自己';
+    const targetText = target === 'character' ? '送TA' : target === 'user' ? '送自己' : '同时送';
     const giftMessage = `[情趣礼物套装] ${giftEmojis} ${giftNames}（${targetText}）${customDesc ? ` - ${customDesc}` : ''}`;
 
     const giftRecord = {
@@ -378,12 +386,20 @@ export async function sendGift() {
     showTypingIndicator(contact);
 
     // 构建给AI的提示
-    const targetTextAI = target === 'character' ? '你' : '用户';
+    let targetTextAI;
+    if (target === 'character') {
+      targetTextAI = '角色（你）';
+    } else if (target === 'user') {
+      targetTextAI = '用户';
+    } else {
+      targetTextAI = '你和用户两人同时';
+    }
     const aiPrompt = `[系统提示：用户刚刚购买了一套情趣玩具套装，包括：${giftNames}，准备送给${targetTextAI}使用。商品正在配送中，预计很快就会送达。${customDesc ? `用户附言：${customDesc}` : ''}
 
 请根据你的角色性格，对这套即将到来的礼物做出反应：
 - 如果是送给你的：可以表现出期待、害羞、紧张、好奇等情绪，可以问用户打算怎么用这些
 - 如果是送给用户的：可以表现出好奇、调侃、期待看到用户反应等
+- 如果是同时送给两人的：可以表现出兴奋、期待、好奇等，想象两人一起使用的场景
 - 根据你的人设和与用户的关系，反应可以是含蓄的、热情的、或者假装矜持的
 - 回复不要太短，请展现角色的内心活动和情绪变化
 
@@ -438,7 +454,7 @@ export async function sendGift() {
   // 构建礼物消息
   let giftMessage;
   if (isToy) {
-    const targetText = target === 'character' ? '送TA' : '送自己';
+    const targetText = target === 'character' ? '送TA' : target === 'user' ? '送自己' : '同时送';
     giftMessage = `[情趣礼物] ${gift.emoji} ${gift.name}（${targetText}）${customDesc ? ` - ${customDesc}` : ''}`;
   } else {
     giftMessage = `[礼物] ${gift.emoji} ${gift.name}${customDesc ? ` - ${customDesc}` : ''}`;
@@ -514,12 +530,20 @@ export async function sendGift() {
   let aiPrompt;
   if (isToy && gift.hasControl) {
     // 可控制的情趣玩具 - 配送中提示词
-    const targetText = target === 'character' ? '你' : '用户';
+    let targetText;
+    if (target === 'character') {
+      targetText = '你';
+    } else if (target === 'user') {
+      targetText = '用户';
+    } else {
+      targetText = '你和用户两人同时';
+    }
     aiPrompt = `[系统提示：用户刚刚购买了一个${gift.name}（${gift.desc}），准备送给${targetText}使用。商品正在配送中，预计很快就会送达。${customDesc ? `用户附言：${customDesc}` : ''}
 
 请根据你的角色性格，对这个即将到来的礼物做出反应：
 - 如果是送给你的：可以表现出期待、害羞、紧张、好奇等情绪
 - 如果是送给用户的：可以表现出好奇、调侃、期待看到用户反应等
+- 如果是同时送给两人的：可以表现出兴奋、期待、好奇等，想象两人一起使用的场景
 - 根据你的人设和与用户的关系，反应可以是含蓄的、热情的、或者假装矜持的
 - 可以询问用户打算怎么用、什么时候用等
 - 回复不要太短，请展现角色的内心活动和情绪变化
@@ -750,7 +774,7 @@ export function appendGiftMessage(role, gift, isToy, customDesc, contact, target
   const giftTypeClass = isToy ? 'wechat-gift-bubble-toy' : '';
   let giftTypeLabel = isToy ? '情趣礼物' : '礼物';
   if (isToy && target) {
-    giftTypeLabel = target === 'character' ? '情趣礼物·送TA' : '情趣礼物·送自己';
+    giftTypeLabel = target === 'character' ? '情趣礼物·送TA' : target === 'user' ? '情趣礼物·送自己' : '情趣礼物·同时送';
   }
 
   messageDiv.innerHTML = `
@@ -796,7 +820,7 @@ export function appendMultiGiftMessage(role, gifts, customDesc, contact, target 
       : firstChar;
   }
 
-  const giftTypeLabel = target === 'character' ? '送TA' : '送自己';
+  const giftTypeLabel = target === 'character' ? '送TA' : target === 'user' ? '送自己' : '同时送';
 
   // 生成每个礼物的标签
   const giftTagsHtml = gifts.map(g => `

@@ -6,7 +6,7 @@ console.log('[可乐] main.js 开始加载...');
 
 import { requestSave, setupUnloadSave } from './save-manager.js';
 
-import { loadSettings, getSettings, MEME_PROMPT_TEMPLATE } from './config.js';
+import { loadSettings, getSettings } from './config.js';
 import { generatePhoneHTML } from './phone-html.js';
 import { showPage, refreshChatList, updateMePageInfo, getUserPersonaFromST, updateTabBadge } from './ui.js';
 import { showToast } from './toast.js';

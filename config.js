@@ -108,13 +108,22 @@ export const MEME_STICKERS = [
   '是的主人yvrgdc.jpg'
 ];
 
-// Meme 表情包提示词模板
-export const MEME_PROMPT_TEMPLATE = `##【必须使用】表情包功能
+// 生成表情包显示名称列表（去重）
+export function getMemeDisplayNames() {
+  const names = MEME_STICKERS.map(s => extractStickerName(s)).filter(n => n);
+  return [...new Set(names)]; // 去重
+}
+
+// Meme 表情包提示词模板（动态生成，使用友好名称）
+export function getMemePromptTemplate() {
+  const displayNames = getMemeDisplayNames();
+  return `##【必须使用】表情包功能
 【重要】你【必须】经常发送表情包！每2-3条回复至少发一个表情包！
 
 使用规则：
-- 格式：<meme>文件名</meme>
-- 只能从下面列表选择，不能编造文件名
+- 格式：<meme>表情名称</meme>
+- 只需要填写表情名称，不需要填写文件ID和扩展名
+- 只能从下面列表选择，不能编造名称
 
 【绝对禁止 - 最重要的规则！】
 <meme>标签前后【绝对不能】有任何其他文字！必须用 ||| 分隔！
@@ -126,15 +135,19 @@ export const MEME_PROMPT_TEMPLATE = `##【必须使用】表情包功能
 
 可用表情包列表：
 [
-${MEME_STICKERS.join('\n')}
+${displayNames.join('\n')}
 ]
 
 【正确示例】：
-好想你|||<meme>小狗摇尾巴hmdj2k.gif</meme>
-哈哈哈笑死|||<meme>小熊跳舞122o4w.gif</meme>|||你太搞笑了
-<meme>喜欢你egvwqb.jpg</meme>|||我真的好喜欢你
+好想你|||<meme>小狗摇尾巴</meme>
+哈哈哈笑死|||<meme>小熊跳舞</meme>|||你太搞笑了
+<meme>喜欢你</meme>|||我真的好喜欢你
 
 记住：表情包让聊天更生动，【必须】经常使用！但<meme>标签必须独立！`;
+}
+
+// 保留旧变量名以兼容，但实际使用时应调用 getMemePromptTemplate()
+export const MEME_PROMPT_TEMPLATE = `##【必须使用】表情包功能 - 请使用 getMemePromptTemplate() 获取完整模板`;
 
 // 一起听功能提示词模板
 export const LISTEN_TOGETHER_PROMPT_TEMPLATE = `##【一起听歌场景】
@@ -357,13 +370,90 @@ export function getUserStickers(settings = getSettings()) {
   return raw.filter(s => s && typeof s.url === 'string' && s.url.trim());
 }
 
+// 从完整文件名中提取显示名称（去除6位ID和扩展名）
+// 例如: "是的主人yvrgdc.jpg" -> "是的主人"
+export function extractStickerName(filename) {
+  if (!filename || typeof filename !== 'string') return '';
+  // 匹配: 名称 + 6位字母数字ID + .扩展名
+  const match = filename.match(/^(.+?)([a-zA-Z0-9]{6})\.(jpg|jpeg|png|gif)$/i);
+  if (match) {
+    return match[1]; // 返回名称部分
+  }
+  // 如果不匹配标准格式，尝试只去除扩展名
+  return filename.replace(/\.(jpg|jpeg|png|gif)$/i, '');
+}
+
+// 从完整文件名中提取文件ID（6位ID+扩展名）
+// 例如: "是的主人yvrgdc.jpg" -> "yvrgdc.jpg"
+export function extractStickerFileId(filename) {
+  if (!filename || typeof filename !== 'string') return '';
+  const match = filename.match(/([a-zA-Z0-9]{6}\.(jpg|jpeg|png|gif))$/i);
+  return match ? match[1] : '';
+}
+
+// 根据名称查找匹配的表情包，支持同名随机选择
+export function findStickerByName(name) {
+  if (!name || typeof name !== 'string') return null;
+  const searchName = name.trim().toLowerCase();
+
+  // 先尝试完整文件名匹配（包含ID和扩展名）
+  const exactMatch = MEME_STICKERS.find(s => s.toLowerCase() === searchName);
+  if (exactMatch) {
+    return extractStickerFileId(exactMatch);
+  }
+
+  // 再尝试按显示名称匹配
+  const matches = MEME_STICKERS.filter(s => {
+    const displayName = extractStickerName(s).toLowerCase();
+    return displayName === searchName;
+  });
+
+  if (matches.length > 0) {
+    // 同名表情包随机选择一个
+    const selected = matches[Math.floor(Math.random() * matches.length)];
+    return extractStickerFileId(selected);
+  }
+
+  // 模糊匹配：名称包含搜索词或搜索词包含名称
+  const fuzzyMatches = MEME_STICKERS.filter(s => {
+    const displayName = extractStickerName(s).toLowerCase();
+    return displayName && (displayName.includes(searchName) || searchName.includes(displayName));
+  });
+
+  if (fuzzyMatches.length > 0) {
+    const selected = fuzzyMatches[Math.floor(Math.random() * fuzzyMatches.length)];
+    return extractStickerFileId(selected);
+  }
+
+  return null;
+}
+
 // 解析 <meme> 标签，替换为图片 HTML
+// 支持两种格式：
+// 1. <meme>完整文件名</meme> 如 <meme>是的主人yvrgdc.jpg</meme>
+// 2. <meme>显示名称</meme> 如 <meme>是的主人</meme>（会从同名表情中随机选择）
 export function parseMemeTag(text) {
   if (!text || typeof text !== 'string') return text;
-  // 匹配 <meme>任意描述+文件ID.扩展名</meme>，只捕获文件ID部分
-  // 使用 .*? 替代 [\u4e00-\u9fa5]*? 以支持包含特殊字符（如 ! ? 等）的表情名称
-  return text.replace(/<\s*meme\s*>.*?([a-zA-Z0-9]+?\.(?:jpg|jpeg|png|gif))\s*<\s*\/\s*meme\s*>/gi, (match, fileId) => {
-    return `<img src="https://files.catbox.moe/${fileId}" style="max-width:130px; border-radius: 10px; display: block; margin: 0 auto;" alt="表情包" onerror="this.alt='加载失败'; this.style.border='1px dashed #ff4d4f';">`;
+
+  // 匹配所有 <meme>xxx</meme> 格式
+  return text.replace(/<\s*meme\s*>(.+?)<\s*\/\s*meme\s*>/gi, (match, content) => {
+    const trimmedContent = content.trim();
+
+    // 尝试直接提取文件ID（完整文件名格式）
+    const directFileId = trimmedContent.match(/([a-zA-Z0-9]{6}\.(jpg|jpeg|png|gif))$/i);
+    if (directFileId) {
+      return `<img src="https://files.catbox.moe/${directFileId[1]}" style="max-width:130px; border-radius: 10px; display: block; margin: 0 auto;" alt="表情包" onerror="this.alt='加载失败'; this.style.border='1px dashed #ff4d4f';">`;
+    }
+
+    // 按名称查找（支持同名随机选择）
+    const fileId = findStickerByName(trimmedContent);
+    if (fileId) {
+      return `<img src="https://files.catbox.moe/${fileId}" style="max-width:130px; border-radius: 10px; display: block; margin: 0 auto;" alt="表情包" onerror="this.alt='加载失败'; this.style.border='1px dashed #ff4d4f';">`;
+    }
+
+    // 无法匹配，返回原文本并显示错误提示
+    console.warn('[可乐] 未找到匹配的表情包:', trimmedContent);
+    return `<span style="color: #ff4d4f; font-size: 12px;">[表情包未找到: ${trimmedContent}]</span>`;
   });
 }
 
@@ -382,8 +472,8 @@ export function splitAIMessages(response) {
 
   // 第二步：对每个部分检查是否包含需要分割的特殊标签
   const result = [];
-  // meme 标签 - 使用 .*? 替代 [\u4e00-\u9fa5]*? 以支持包含特殊字符的表情名称
-  const memeRegex = /<\s*meme\s*>.*?[a-zA-Z0-9]+?\.(?:jpg|jpeg|png|gif)\s*<\s*\/\s*meme\s*>/gi;
+  // meme 标签 - 匹配任意 <meme>xxx</meme> 格式，不仅限于带文件扩展名的
+  const memeRegex = /<\s*meme\s*>[\s\S]+?<\s*\/\s*meme\s*>/gi;
   // 语音标签 [语音:xxx] 或 [语音：xxx]
   const voiceRegex = /\[语音[：:]\s*.+?\]/g;
   // 照片标签 [照片:xxx] 或 [照片：xxx]
@@ -393,8 +483,8 @@ export function splitAIMessages(response) {
   // 2. [分享音乐] 歌名 - 歌手 - 无冒号格式（AI可能会这样输出）
   const musicRegexWithColon = /\[(?:分享)?音乐[：:]\s*.+?\]/g;
   const musicRegexNoColon = /\[分享音乐\]\s*[\u4e00-\u9fa5a-zA-Z0-9]+(?:\s*[-–—]\s*[\u4e00-\u9fa5a-zA-Z0-9]+)?/g;
-  // 表情标签 [表情:xxx]
-  const stickerRegex = /\[表情[：:]\s*.+?\]/g;
+  // 表情标签 [表情:xxx] - 更宽松的匹配，允许冒号前后有空格
+  const stickerRegex = /\[表情\s*[：:∶]\s*.+?\]/g;
   // 撤回标签 [撤回] / [撤回了一条消息] / [撤回消息] / [撤回一条消息] / [已撤回] / [消息撤回]
   const recallRegex = /\[(?:撤回(?:了?一条)?消息?|已撤回|消息撤回)\]/g;
   // 红包标签 [红包:金额:祝福语] 或 [红包:金额]

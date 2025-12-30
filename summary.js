@@ -500,7 +500,7 @@ export async function callSummaryAPI(prompt) {
         { role: 'user', content: prompt }
       ],
       temperature: 1,
-      max_tokens: 8196
+      max_tokens: 50000
     })
   });
 
@@ -550,7 +550,7 @@ function parseJSONResponse(content) {
     const words = content.match(/[\u4e00-\u9fa5]{2,}/g) || ['聊天', '记录'];
     return {
       keys: [...new Set(words)].slice(0, 5),
-      content: content.substring(0, 800).replace(/```[\s\S]*?```/g, '').trim(),
+      content: content.substring(0, 30000).replace(/```[\s\S]*?```/g, '').trim(),
       comment: '感情记录'
     };
   }

@@ -28,15 +28,39 @@ const TOY_ICONS = {
   // 吮吸类玩具图标
   gentle: `<svg viewBox="0 0 24 24" width="28" height="28"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>`,
   strong: `<svg viewBox="0 0 24 24" width="28" height="28"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>`,
-  pulse: `<svg viewBox="0 0 24 24" width="28" height="28"><circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="currentColor"/><circle cx="18" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`
+  pulse: `<svg viewBox="0 0 24 24" width="28" height="28"><circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="currentColor"/><circle cx="18" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`,
+  // 炮机专用图标
+  slow: `<svg viewBox="0 0 24 24" width="28" height="28"><path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  fast: `<svg viewBox="0 0 24 24" width="28" height="28"><path d="M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8l4 4-4 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  deep: `<svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 13l7 7 7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  // 飞机杯专用图标
+  tighten: `<svg viewBox="0 0 24 24" width="28" height="28"><path d="M9 4v16M15 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 12h4M16 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  suck: `<svg viewBox="0 0 24 24" width="28" height="28"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  combo: `<svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`
 };
 
 // 吮吸类玩具ID列表
 const SUCTION_TOY_IDS = ['breastPump', 'clitSucker'];
 
+// 炮机ID
+const MACHINE_TOY_IDS = ['fuckingMachine'];
+
+// 飞机杯ID
+const CUP_TOY_IDS = ['masturbatorCup'];
+
 // 判断是否是吮吸类玩具
 function isSuctionToy(giftId) {
   return SUCTION_TOY_IDS.includes(giftId);
+}
+
+// 判断是否是炮机
+function isMachineToy(giftId) {
+  return MACHINE_TOY_IDS.includes(giftId);
+}
+
+// 判断是否是飞机杯
+function isCupToy(giftId) {
+  return CUP_TOY_IDS.includes(giftId);
 }
 
 // 震动类控制模式定义
@@ -104,6 +128,74 @@ const SUCTION_CONTROL_MODES = {
     name: '暂停',
     icon: TOY_ICONS.pause,
     desc: '暂停吮吸'
+  }
+};
+
+// 炮机控制模式定义
+const MACHINE_CONTROL_MODES = {
+  slow: {
+    id: 'slow',
+    name: '慢速抽插',
+    icon: TOY_ICONS.slow,
+    desc: '缓慢温柔的节奏'
+  },
+  start: {
+    id: 'start',
+    name: '开始运作',
+    icon: TOY_ICONS.start,
+    desc: '开始/继续运作'
+  },
+  fast: {
+    id: 'fast',
+    name: '快速冲刺',
+    icon: TOY_ICONS.fast,
+    desc: '高速猛烈的节奏'
+  },
+  deep: {
+    id: 'deep',
+    name: '深入模式',
+    icon: TOY_ICONS.deep,
+    desc: '深度刺激'
+  },
+  pause: {
+    id: 'pause',
+    name: '暂停',
+    icon: TOY_ICONS.pause,
+    desc: '暂停运作'
+  }
+};
+
+// 飞机杯控制模式定义
+const CUP_CONTROL_MODES = {
+  tighten: {
+    id: 'tighten',
+    name: '收紧夹吸',
+    icon: TOY_ICONS.tighten,
+    desc: '收紧通道增加摩擦'
+  },
+  start: {
+    id: 'start',
+    name: '开始享受',
+    icon: TOY_ICONS.start,
+    desc: '开始/继续运作'
+  },
+  suck: {
+    id: 'suck',
+    name: '吮吸模式',
+    icon: TOY_ICONS.suck,
+    desc: '模拟吮吸感'
+  },
+  combo: {
+    id: 'combo',
+    name: '组合模式',
+    icon: TOY_ICONS.combo,
+    desc: '震动+吮吸组合'
+  },
+  pause: {
+    id: 'pause',
+    name: '暂停',
+    icon: TOY_ICONS.pause,
+    desc: '暂停运作'
   }
 };
 
@@ -220,13 +312,32 @@ function renderToyControlPage() {
   const messagesEl = document.getElementById('wechat-toy-control-messages');
 
   if (titleEl) {
-    const targetText = toyControlState.target === 'character' ? 'TA在用' : '你在用';
+    let targetText;
+    if (toyControlState.target === 'character') {
+      targetText = 'TA在用';
+    } else if (toyControlState.target === 'user') {
+      targetText = '你在用';
+    } else {
+      targetText = '一起用';
+    }
     titleEl.textContent = `${toyControlState.gift.giftName} · ${targetText}`;
   }
 
   // 判断当前玩具类型
   const isSuction = isSuctionToy(toyControlState.gift.giftId);
-  const modes = isSuction ? SUCTION_CONTROL_MODES : TOY_CONTROL_MODES;
+  const isMachine = isMachineToy(toyControlState.gift.giftId);
+  const isCup = isCupToy(toyControlState.gift.giftId);
+
+  let modes;
+  if (isSuction) {
+    modes = SUCTION_CONTROL_MODES;
+  } else if (isMachine) {
+    modes = MACHINE_CONTROL_MODES;
+  } else if (isCup) {
+    modes = CUP_CONTROL_MODES;
+  } else {
+    modes = TOY_CONTROL_MODES;
+  }
 
   // 渲染按钮
   if (buttonsEl) {
@@ -255,6 +366,74 @@ function renderToyControlPage() {
           <button class="wechat-toy-btn" data-mode="pulse">
             ${modes.pulse.icon}
             <span class="wechat-toy-btn-label">${modes.pulse.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="pause">
+            ${modes.pause.icon}
+            <span class="wechat-toy-btn-label">${modes.pause.name}</span>
+          </button>
+          <button class="wechat-toy-btn wechat-toy-btn-media" data-media="camera" title="摄像头">
+            ${toyControlState.cameraEnabled ? TOY_ICONS.cameraOn : TOY_ICONS.cameraOff}
+          </button>
+        </div>
+      `;
+    } else if (isMachine) {
+      // 炮机按钮布局
+      buttonsHtml = `
+        <div class="wechat-toy-btn-row">
+          <button class="wechat-toy-btn" data-mode="slow">
+            ${modes.slow.icon}
+            <span class="wechat-toy-btn-label">${modes.slow.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="start">
+            ${modes.start.icon}
+            <span class="wechat-toy-btn-label">${modes.start.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="fast">
+            ${modes.fast.icon}
+            <span class="wechat-toy-btn-label">${modes.fast.name}</span>
+          </button>
+        </div>
+        <div class="wechat-toy-btn-row">
+          <button class="wechat-toy-btn wechat-toy-btn-media" data-media="mic" title="麦克风">
+            ${toyControlState.micEnabled ? TOY_ICONS.micOn : TOY_ICONS.micOff}
+          </button>
+          <button class="wechat-toy-btn" data-mode="deep">
+            ${modes.deep.icon}
+            <span class="wechat-toy-btn-label">${modes.deep.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="pause">
+            ${modes.pause.icon}
+            <span class="wechat-toy-btn-label">${modes.pause.name}</span>
+          </button>
+          <button class="wechat-toy-btn wechat-toy-btn-media" data-media="camera" title="摄像头">
+            ${toyControlState.cameraEnabled ? TOY_ICONS.cameraOn : TOY_ICONS.cameraOff}
+          </button>
+        </div>
+      `;
+    } else if (isCup) {
+      // 飞机杯按钮布局
+      buttonsHtml = `
+        <div class="wechat-toy-btn-row">
+          <button class="wechat-toy-btn" data-mode="tighten">
+            ${modes.tighten.icon}
+            <span class="wechat-toy-btn-label">${modes.tighten.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="start">
+            ${modes.start.icon}
+            <span class="wechat-toy-btn-label">${modes.start.name}</span>
+          </button>
+          <button class="wechat-toy-btn" data-mode="suck">
+            ${modes.suck.icon}
+            <span class="wechat-toy-btn-label">${modes.suck.name}</span>
+          </button>
+        </div>
+        <div class="wechat-toy-btn-row">
+          <button class="wechat-toy-btn wechat-toy-btn-media" data-media="mic" title="麦克风">
+            ${toyControlState.micEnabled ? TOY_ICONS.micOn : TOY_ICONS.micOff}
+          </button>
+          <button class="wechat-toy-btn" data-mode="combo">
+            ${modes.combo.icon}
+            <span class="wechat-toy-btn-label">${modes.combo.name}</span>
           </button>
           <button class="wechat-toy-btn" data-mode="pause">
             ${modes.pause.icon}
@@ -320,6 +499,9 @@ function renderToyControlPage() {
 
   // 多玩具轮盘选择器
   renderToyWheelSelector();
+
+  // 更新麦克风/摄像头按钮的 active 状态
+  updateMediaButtonUI();
 
   // 不清空消息（保留聊天内容）
   // 只在首次进入时清空
@@ -729,7 +911,23 @@ function buildMediaTogglePrompt(mediaType, isEnabled) {
 async function onButtonPress(buttonId, pressedBy = 'user') {
   if (!toyControlState.isActive) return;
 
-  const button = TOY_CONTROL_MODES[buttonId] || (buttonId === 'shock' ? SHOCK_BUTTON : null);
+  // 根据玩具类型获取对应的模式定义
+  const isSuction = isSuctionToy(toyControlState.gift.giftId);
+  const isMachine = isMachineToy(toyControlState.gift.giftId);
+  const isCup = isCupToy(toyControlState.gift.giftId);
+
+  let modes;
+  if (isSuction) {
+    modes = SUCTION_CONTROL_MODES;
+  } else if (isMachine) {
+    modes = MACHINE_CONTROL_MODES;
+  } else if (isCup) {
+    modes = CUP_CONTROL_MODES;
+  } else {
+    modes = TOY_CONTROL_MODES;
+  }
+
+  const button = modes[buttonId] || (buttonId === 'shock' ? SHOCK_BUTTON : null);
   if (!button) return;
 
   // 更新按钮状态（变深色）
@@ -781,27 +979,49 @@ function updateButtonState(buttonId) {
 // 构建按钮按下提示词
 function buildButtonPressPrompt(buttonId, buttonName, pressedBy) {
   const isCharacterUsing = toyControlState.target === 'character';
+  const isBothUsing = toyControlState.target === 'both';
   const isAIPress = pressedBy === 'ai';
   const isSuction = isSuctionToy(toyControlState.gift.giftId);
+  const isMachine = isMachineToy(toyControlState.gift.giftId);
+  const isCup = isCupToy(toyControlState.gift.giftId);
 
   // 根据玩具类型选择效果描述
-  const modeEffects = isSuction ? {
-    // 吮吸类玩具效果
-    gentle: '轻柔的吮吸开始了，温柔地包裹着敏感部位',
-    start: '吮吸开始/继续了',
-    strong: '吮吸力度突然加大，强烈的吸力让人难以抗拒',
-    pulse: '有节奏的吸放开始了，一收一放的刺激',
-    pause: '吮吸停止了，可以喘息一下',
-    shock: '一阵微电流刺激瞬间传来，让人猛地一颤'
-  } : {
-    // 震动类玩具效果
-    classic: '稳定持续的震动开始了',
-    start: '震动开始/继续了',
-    rampage: '震动突然变到最大强度，非常强烈的刺激袭来',
-    wave: '震动开始由弱到强循环变化，一波一波的刺激',
-    pause: '震动停止了，可以喘息一下',
-    shock: '一阵微电流刺激瞬间传来，让人猛地一颤'
-  };
+  let modeEffects;
+  if (isSuction) {
+    modeEffects = {
+      gentle: '轻柔的吮吸开始了，温柔地包裹着敏感部位',
+      start: '吮吸开始/继续了',
+      strong: '吮吸力度突然加大，强烈的吸力让人难以抗拒',
+      pulse: '有节奏的吸放开始了，一收一放的刺激',
+      pause: '吮吸停止了，可以喘息一下',
+      shock: '一阵微电流刺激瞬间传来，让人猛地一颤'
+    };
+  } else if (isMachine) {
+    modeEffects = {
+      slow: '缓慢的抽插开始了，温柔而深情的节奏',
+      start: '炮机开始运作了',
+      fast: '炮机突然加速，快速猛烈的冲击让人招架不住',
+      deep: '炮机调整角度深入，每一下都直抵最深处',
+      pause: '炮机停止了，可以喘息一下'
+    };
+  } else if (isCup) {
+    modeEffects = {
+      tighten: '飞机杯收紧了通道，增加的摩擦感让人更加敏感',
+      start: '飞机杯开始运作了',
+      suck: '飞机杯开始模拟吮吸，一吸一放的快感',
+      combo: '震动和吮吸同时开启，双重刺激袭来',
+      pause: '飞机杯停止了，可以喘息一下'
+    };
+  } else {
+    modeEffects = {
+      classic: '稳定持续的震动开始了',
+      start: '震动开始/继续了',
+      rampage: '震动突然变到最大强度，非常强烈的刺激袭来',
+      wave: '震动开始由弱到强循环变化，一波一波的刺激',
+      pause: '震动停止了，可以喘息一下',
+      shock: '一阵微电流刺激瞬间传来，让人猛地一颤'
+    };
+  }
 
   let prompt;
 
@@ -817,6 +1037,11 @@ function buildButtonPressPrompt(buttonId, buttonName, pressedBy) {
 - 为什么要主动切换这个模式（想要更多刺激/受不了想暂停/想换个感觉等）
 - 切换后的身体感受和情绪变化
 - 回复要有情感细节，符合你的角色性格`;
+    } else if (isBothUsing) {
+      prompt += `你和用户都在使用玩具，你主动切换了模式，请描述：
+- 两人同时使用时的互动感受
+- 切换后你们双方的反应
+- 可以和用户分享此刻的感受`;
     } else {
       prompt += `你主动控制了用户正在使用的${toyControlState.gift.giftName}，请描述你主动操作后的感受：
 - 为什么要主动给用户切换这个模式（想折磨对方/想看对方的反应/调侃等）
@@ -833,6 +1058,11 @@ function buildButtonPressPrompt(buttonId, buttonName, pressedBy) {
     if (isCharacterUsing) {
       prompt += `你正在使用${toyControlState.gift.giftName}，请根据这个刺激变化做出反应。
 描述你的身体感受、情绪变化。回复要有情感细节，符合你的角色性格。`;
+    } else if (isBothUsing) {
+      prompt += `你和用户都在使用玩具，用户切换了模式，请描述：
+- 你自己感受到的变化
+- 想象用户此刻的感受
+- 可以和用户互动，分享彼此的感受`;
     } else {
       prompt += `用户正在使用${toyControlState.gift.giftName}，你在观察。
 请描述你观察到的用户可能的反应，可以调侃、鼓励或挑逗。回复要有趣，符合你的角色性格。`;

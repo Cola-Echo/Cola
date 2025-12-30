@@ -178,7 +178,7 @@ function generateContactChatItem(contact) {
       preview = '[表情]';
     } else if (preview.includes('<photo>') || preview.includes('<image>')) {
       preview = '[图片]';
-    } else if (/\[表情[：:].+?\]/.test(preview)) {
+    } else if (/\[表情\s*[：:∶].+?\]/.test(preview)) {
       preview = '[表情]';
     } else if (/\[语音[：:].+?\]/.test(preview)) {
       preview = '[语音]';
@@ -245,7 +245,7 @@ function generateGroupChatItem(group, settings) {
         content = '[表情]';
       } else if (content.includes('<photo>') || content.includes('<image>')) {
         content = '[图片]';
-      } else if (/\[表情[：:].+?\]/.test(content)) {
+      } else if (/\[表情\s*[：:∶].+?\]/.test(content)) {
         content = '[表情]';
       } else if (/\[语音[：:].+?\]/.test(content)) {
         content = '[语音]';

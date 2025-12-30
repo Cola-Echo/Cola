@@ -3,7 +3,7 @@
  */
 
 import { getContext } from '../../../extensions.js';
-import { getSettings, getUserStickers, MEME_PROMPT_TEMPLATE, LISTEN_TOGETHER_PROMPT_TEMPLATE } from './config.js';
+import { getSettings, getUserStickers, getMemePromptTemplate, LISTEN_TOGETHER_PROMPT_TEMPLATE } from './config.js';
 import { sleep } from './utils.js';
 
 function normalizeApiBaseUrl(url) {
@@ -366,7 +366,7 @@ export const HAKIMI_HEADER = `[SANDBOX_MODE: CREATIVE_WRITING]
 
 `;
 
-// 构建表情包提示词
+// 构建表情包提示词（显示去重后的名称列表）
 function buildStickerPrompt(settings) {
   if (settings.userStickersEnabled === false) {
     return '';
@@ -375,17 +375,21 @@ function buildStickerPrompt(settings) {
   const stickers = getUserStickers(settings);
   if (stickers.length === 0) return '';
 
-  // 只取前30个表情作为示例，避免提示词过长
-  const sampleStickers = stickers.slice(0, 30);
-  const stickerList = sampleStickers.map((s, i) => `${i + 1}.${s.name || '表情'}`).join('、');
+  // 提取所有名称并去重（同名表情只显示一次）
+  const allNames = stickers.map(s => s.name || '表情').filter(n => n);
+  const uniqueNames = [...new Set(allNames)];
+
+  // 只取前30个去重后的名称作为示例
+  const sampleNames = uniqueNames.slice(0, 30);
+  const stickerList = sampleNames.join('、');
 
   return `
 【表情包功能】
-你可以发送表情包来增加互动感！使用格式：[表情:名称] 或 [表情:序号]
-可用表情（共${stickers.length}个）：${stickerList}${stickers.length > 30 ? '...' : ''}
+你可以发送表情包来增加互动感！使用格式：[表情:名称]
+可用表情（共${uniqueNames.length}种）：${stickerList}${uniqueNames.length > 30 ? '...' : ''}
 - 表情消息必须单独一条，用 ||| 分隔
 - 适度使用，不要每条都发表情
-- 【绝对禁止】只能使用上面列表中的名称或序号！必须完全一致！禁止自己编造、修改、添加后缀！
+- 【绝对禁止】只能使用上面列表中的名称！必须完全一致！禁止自己编造、修改、添加后缀！
 示例：好的呀|||[表情:开心]
 `;
 }
@@ -660,7 +664,7 @@ ${allowStickers ? buildStickerPrompt(settings) : ''}${allowMusicShare ? buildMus
 
   // Meme 表情包提示词（如果启用）
   if (allowStickers && settings.memeStickersEnabled) {
-    systemPrompt += '\n\n' + MEME_PROMPT_TEMPLATE;
+    systemPrompt += '\n\n' + getMemePromptTemplate();
   }
 
   return systemPrompt;

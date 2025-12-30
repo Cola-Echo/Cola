@@ -4,7 +4,7 @@
 
 import { requestSave, saveNow } from './save-manager.js';
 import { getContext } from '../../../extensions.js';
-import { getSettings, SUMMARY_MARKER_PREFIX, getUserStickers, parseMemeTag, MEME_PROMPT_TEMPLATE, splitAIMessages } from './config.js';
+import { getSettings, SUMMARY_MARKER_PREFIX, getUserStickers, parseMemeTag, getMemePromptTemplate, splitAIMessages } from './config.js';
 import { showToast } from './toast.js';
 import { escapeHtml, sleep, formatMessageTime, calculateVoiceDuration, bindImageLoadFallback } from './utils.js';
 import { getUserAvatarHTML, refreshChatList, getUserPersonaFromST } from './ui.js';
@@ -1279,7 +1279,7 @@ ${userStickers.map((s, i) => `  ${i + 1}. ${s.name || '表情' + (i + 1)}`).join
 
   // Meme 表情包提示词（如果启用）
   if (settings.memeStickersEnabled) {
-    systemPrompt += '\n\n' + MEME_PROMPT_TEMPLATE;
+    systemPrompt += '\n\n' + getMemePromptTemplate();
   }
 
   return systemPrompt;

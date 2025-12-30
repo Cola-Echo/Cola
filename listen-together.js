@@ -600,7 +600,7 @@ function filterListenMessage(text) {
   // 过滤 meme 表情包
   reply = reply.replace(/<\s*meme\s*>[\s\S]*?<\s*\/\s*meme\s*>/gi, '').trim();
   // 过滤 [表情:xxx]
-  reply = reply.replace(/\[表情[：:][^\]]*\]/g, '').trim();
+  reply = reply.replace(/\[表情\s*[：:∶][^\]]*\]/g, '').trim();
   // 过滤 [照片:xxx]
   reply = reply.replace(/\[照片[：:][^\]]*\]/g, '').trim();
   // 过滤 [语音:xxx]

@@ -9,6 +9,37 @@ import { isInGroupChat } from './group-chat.js';
 import { hasPendingStickerSelection, setStickerForMultiMsg } from './chat-func-panel.js';
 
 let emojiPanelInited = false;
+let migrationDone = false;
+
+// 迁移：去除现有表情名称的数字后缀（如"点赞老人1" -> "点赞老人"）
+function migrateStickersRemoveNumericSuffix() {
+  if (migrationDone) return;
+  migrationDone = true;
+
+  const settings = getSettings();
+  if (!Array.isArray(settings.stickers) || settings.stickers.length === 0) return;
+
+  let changed = false;
+  settings.stickers.forEach(sticker => {
+    if (!sticker.name) return;
+    // 匹配末尾的数字（1-9位数字），但保留6位catbox ID
+    // 只去除类似 "点赞老人1" 末尾的 "1", "2", "3" 等
+    const match = sticker.name.match(/^(.+?)(\d{1,3})$/);
+    if (match) {
+      const baseName = match[1];
+      // 确保不是catbox ID格式（6位字母数字）
+      if (!/^[a-z0-9]{6}$/i.test(baseName)) {
+        sticker.name = baseName;
+        changed = true;
+      }
+    }
+  });
+
+  if (changed) {
+    requestSave();
+    console.log('[可乐] 已迁移表情名称，去除数字后缀');
+  }
+}
 
 // 默认表情包列表（catbox 图床）
 const DEFAULT_STICKERS = [
@@ -119,24 +150,11 @@ function getCatboxUrl(id, ext) {
   return `https://files.catbox.moe/${id}.${ext}`;
 }
 
-// 生成唯一的表情名称（如果已存在同名则添加数字后缀）
+// 获取表情名称（允许同名，不再添加数字后缀）
 function getUniqueStickerName(baseName, stickers) {
-  if (!stickers || stickers.length === 0) return baseName;
-
-  // 检查是否已存在同名
-  const existingNames = stickers.map(s => s.name);
-  if (!existingNames.includes(baseName)) {
-    return baseName;
-  }
-
-  // 添加数字后缀直到找到唯一名称
-  let counter = 1;
-  let newName = `${baseName}${counter}`;
-  while (existingNames.includes(newName)) {
-    counter++;
-    newName = `${baseName}${counter}`;
-  }
-  return newName;
+  // 直接返回原始名称，允许同名表情存在
+  // 同名表情通过URL区分，发送时随机选择
+  return baseName;
 }
 
 // 切换表情面板显示/隐藏
@@ -177,7 +195,11 @@ export function refreshEmojiGrid() {
   let html = '';
 
   // 我的表情区域（用户添加的表情）
-  html += '<div class="wechat-emoji-section-title">我的表情</div>';
+  html += '<div class="wechat-emoji-section-title" style="display: flex; justify-content: space-between; align-items: center;">我的表情';
+  if (userStickers.length > 0) {
+    html += `<span id="wechat-emoji-clear-all" style="font-size: 11px; color: var(--wechat-text-secondary); cursor: pointer;">清空全部</span>`;
+  }
+  html += '</div>';
   html += '<div class="wechat-emoji-grid" id="wechat-emoji-user-grid">';
   html += `<button class="wechat-emoji-add" id="wechat-emoji-add-btn">+</button>`;
   userStickers.forEach((sticker, index) => {
@@ -209,6 +231,9 @@ export function refreshEmojiGrid() {
 
   // 绑定添加按钮事件
   document.getElementById('wechat-emoji-add-btn')?.addEventListener('click', showAddStickerDialog);
+
+  // 绑定清空全部按钮事件
+  document.getElementById('wechat-emoji-clear-all')?.addEventListener('click', clearAllStickers);
 
   // 绑定用户表情左滑删除
   content.querySelectorAll('.wechat-emoji-swipe-container').forEach(container => {
@@ -243,6 +268,7 @@ function setupSwipeToDelete(container) {
     }
     isDragging = true;
     startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+    currentX = startX; // 初始化 currentX，确保点击时 diff 为 0
     item.style.transition = 'none';
   }
 
@@ -502,6 +528,24 @@ function deleteSticker(index) {
   }
 }
 
+// 清空所有用户表情
+function clearAllStickers() {
+  const settings = getSettings();
+  const stickers = settings.stickers || [];
+
+  if (stickers.length === 0) {
+    showToast('没有表情可清空', 'info');
+    return;
+  }
+
+  if (!confirm(`确定要清空全部 ${stickers.length} 个自定义表情吗？此操作不可恢复！`)) return;
+
+  settings.stickers = [];
+  requestSave();
+  refreshEmojiGrid();
+  showToast('已清空所有表情');
+}
+
 // 初始化表情面板
 export function initEmojiPanel() {
   if (emojiPanelInited) return;
@@ -510,6 +554,9 @@ export function initEmojiPanel() {
   if (!panel) return;
 
   emojiPanelInited = true;
+
+  // 执行迁移：去除现有表情名称的数字后缀
+  migrateStickersRemoveNumericSuffix();
 
   // 绑定标签切换事件
   document.querySelectorAll('.wechat-emoji-tab').forEach(tab => {

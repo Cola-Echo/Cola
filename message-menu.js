@@ -26,7 +26,7 @@ const menuItems = [
   { id: 'transcribe', icon: 'transcribe', text: '转文字', voiceOnly: true },
   { id: 'quote', icon: 'quote', text: '引用' },
   { id: 'recall', icon: 'recall', text: '撤回', userOnly: true },
-  { id: 'delete', icon: 'delete', text: '删除' },
+  { id: 'regenerate', icon: 'regenerate', text: '重新生成', userOnly: true },
   { id: 'multiselect', icon: 'multiselect', text: '多选' }
 ];
 
@@ -50,11 +50,10 @@ const icons = {
     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
     <path d="M3 3v5h5"/>
   </svg>`,
-  delete: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-    <polyline points="3 6 5 6 21 6"/>
-    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-    <line x1="10" y1="11" x2="10" y2="17"/>
-    <line x1="14" y1="11" x2="14" y2="17"/>
+  regenerate: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M23 4v6h-6"/>
+    <path d="M1 20v-6h6"/>
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
   </svg>`,
   multiselect: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
     <path d="M9 11l3 3L22 4"/>
@@ -281,11 +280,11 @@ function handleMenuAction(action, msgIndex, voiceId = '', voiceContent = '') {
         recallMessage(msgIndex, contact);
       }
       break;
-    case 'delete':
+    case 'regenerate':
       if (groupIndex >= 0) {
-        deleteGroupMessage(msgIndex, groupChat);
+        regenerateGroupMessage(msgIndex, groupChat);
       } else {
-        deleteMessage(msgIndex, contact);
+        regenerateMessage(msgIndex, contact);
       }
       break;
     case 'multiselect':
@@ -450,13 +449,75 @@ export function setQuote(quote) {
   }
 }
 
-// 删除消息
-function deleteMessage(msgIndex, contact) {
-  contact.chatHistory.splice(msgIndex, 1);
+// 重新生成回复（保留用户消息，删除后面的AI消息并重新生成）
+async function regenerateMessage(msgIndex, contact) {
+  const msg = contact.chatHistory[msgIndex];
+  if (!msg || msg.role !== 'user') {
+    showToast('只能对用户消息重新生成');
+    return;
+  }
+
+  // 删除该用户消息之后的所有消息
+  const removedCount = contact.chatHistory.length - msgIndex - 1;
+  if (removedCount > 0) {
+    contact.chatHistory.splice(msgIndex + 1);
+  }
+
   requestSave();
   // 刷新聊天界面
   openChat(currentChatIndex);
-  showToast('已删除');
+  showToast('正在重新生成...');
+
+  // 触发AI重新回复
+  try {
+    showTypingIndicator(contact);
+
+    const { callAI } = await import('./ai.js');
+    // 使用用户原始消息重新调用AI
+    const userContent = msg.content || '';
+    const aiResponse = await callAI(contact, userContent);
+
+    hideTypingIndicator();
+
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+
+    // 解析AI回复（可能有多条消息）
+    const aiMessages = splitAIMessages(aiResponse);
+
+    for (const aiMsg of aiMessages) {
+      let finalMsg = aiMsg.trim();
+      if (!finalMsg) continue;
+
+      let isVoice = false;
+      const voiceMatch = finalMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
+      if (voiceMatch) {
+        finalMsg = voiceMatch[1];
+        isVoice = true;
+      }
+
+      contact.chatHistory.push({
+        role: 'assistant',
+        content: finalMsg,
+        time: timeStr,
+        timestamp: Date.now(),
+        isVoice: isVoice
+      });
+
+      appendMessage('assistant', finalMsg, contact, isVoice);
+    }
+
+    requestSave();
+  } catch (err) {
+    hideTypingIndicator();
+    console.error('[可乐] 重新生成失败:', err);
+    showToast('重新生成失败');
+  }
+}
+
+// 群聊重新生成回复
+async function regenerateGroupMessage(msgIndex, groupChat) {
+  showToast('群聊暂不支持重新生成');
 }
 
 // 撤回消息
