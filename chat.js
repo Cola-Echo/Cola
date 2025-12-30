@@ -886,9 +886,9 @@ export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
       return;
     }
 
-    // 检查是否是通话记录消息
+    // 检查是否是通话记录消息（排除实时语音）
     const callRecordMatch = (msg.content || '').match(/^\[通话记录[：:](.+?)\]$/);
-    if (msg.isCallRecord || callRecordMatch) {
+    if ((msg.isCallRecord && !msg.isRealVoice) || callRecordMatch) {
       const callInfo = callRecordMatch ? callRecordMatch[1] : '00:00';
       const isDuration = /^\d{2}:\d{2}$/.test(callInfo);
       const isCancelled = callInfo === '已取消';

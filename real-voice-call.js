@@ -79,6 +79,8 @@ export function startRealVoiceCall(initiator = 'user', contactIndex = currentCha
   callState.isProcessing = false;
   callState.isPlaying = false;
   callState.recorder = new AudioRecorder();
+  callState.voiceCache = []; // 重置语音缓存
+  callState.isHangingUp = false; // 重置挂断标志
 
   showCallPage();
   startConnecting();
@@ -723,6 +725,14 @@ export async function hangupCall() {
   if (callState.isHangingUp) return;
   callState.isHangingUp = true;
 
+  // 先保存需要的值（后面状态会变）
+  const wasConnected = callState.isConnected;
+  const cachedVoices = callState.voiceCache ? [...callState.voiceCache] : [];
+  const contactIdx = callState.contactIndex;
+  const callTimestamp = callState.startTime || Date.now();
+
+  console.log('[可乐] 挂断时状态:', { wasConnected, voiceCacheLength: cachedVoices.length });
+
   // 停止录音
   if (callState.recorder) {
     callState.recorder.cancel();
@@ -853,12 +863,10 @@ export async function hangupCall() {
   clearInterval(callState.timerInterval);
   clearInterval(callState.dotsInterval);
 
-  // 如果有缓存的语音，显示保存弹窗
-  if (callState.voiceCache && callState.voiceCache.length > 0 && callState.isConnected) {
-    const callTimestamp = callState.startTime || Date.now();
-    const contactIdx = callState.contactIndex;
-    const cachedVoices = [...callState.voiceCache]; // 复制一份
+  // 如果有缓存的语音，显示保存弹窗（使用之前保存的变量，因为 callState 可能已被修改）
+  console.log('[可乐] 检查是否显示语音保存弹窗:', { wasConnected, cachedVoicesLength: cachedVoices.length });
 
+  if (cachedVoices.length > 0 && wasConnected) {
     // 重置状态
     resetCallState();
 
