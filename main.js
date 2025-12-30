@@ -37,6 +37,8 @@ import { initGroupRedPacket } from './group-red-packet.js';
 import { initGiftEvents } from './gift.js';
 import { initCropper } from './cropper.js';
 import { createFloatingBall, showFloatingBall, hideFloatingBall } from './floating-ball.js';
+import { testSttApi, testTtsApi } from './voice-api.js';
+import { getVoiceRecordingsByContact, deleteVoiceRecording, playVoiceRecording } from './audio-storage.js';
 
 // ========== 历史记录功能 ==========
 let currentHistoryTab = 'listen';
@@ -137,6 +139,12 @@ function renderHistoryContent(contact, tabType) {
     return;
   }
 
+  // 语音回放使用专门的渲染函数
+  if (tabType === 'playback') {
+    renderVoicePlaybackContent(contact);
+    return;
+  }
+
   const context = window.SillyTavern?.getContext?.() || {};
   const userName = context.name1 || '用户';
 
@@ -219,6 +227,130 @@ function renderHistoryContent(contact, tabType) {
       deleteHistoryRecord(tab, index);
     });
   });
+}
+
+// 渲染语音回放内容
+async function renderVoicePlaybackContent(contact) {
+  const contentEl = document.getElementById('wechat-history-content');
+  if (!contentEl) return;
+
+  const contactIndex = currentHistoryContactIndex;
+  if (contactIndex < 0) {
+    contentEl.innerHTML = '<div class="wechat-history-empty"><div class="wechat-history-empty-icon">📭</div><div>请先选择联系人</div></div>';
+    return;
+  }
+
+  // 显示加载状态
+  contentEl.innerHTML = '<div class="wechat-history-empty"><div>加载中...</div></div>';
+
+  try {
+    const recordings = await getVoiceRecordingsByContact(contactIndex);
+
+    if (!recordings || recordings.length === 0) {
+      contentEl.innerHTML = `
+        <div class="wechat-history-empty">
+          <div class="wechat-history-empty-icon" style="color: #07c160;">
+            <svg viewBox="0 0 24 24" width="48" height="48">
+              <path d="M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            </svg>
+          </div>
+          <div>暂无语音回放记录</div>
+          <div style="font-size: 12px; color: var(--wechat-text-secondary); margin-top: 8px;">实时语音通话结束后可选择保存语音</div>
+        </div>
+      `;
+      return;
+    }
+
+    // 按保存时间倒序排列
+    const sortedRecordings = [...recordings].sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+
+    let html = '<div class="wechat-voice-playback-list">';
+
+    for (const recording of sortedRecordings) {
+      const savedTime = recording.savedAt ? new Date(recording.savedAt).toLocaleString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) : '未知时间';
+
+      const durationSec = Math.round(recording.duration || 0);
+      const durationStr = durationSec > 0 ? `${durationSec}"` : '?秒';
+
+      html += `
+        <div class="wechat-voice-playback-card" data-id="${recording.id}">
+          <div class="wechat-voice-playback-card-header">
+            <span class="wechat-voice-playback-time">${escapeHtml(savedTime)}</span>
+            <div class="wechat-voice-playback-actions">
+              <span class="wechat-voice-playback-duration">${durationStr}</span>
+              <button class="wechat-voice-playback-delete" data-id="${recording.id}" title="删除">×</button>
+            </div>
+          </div>
+          <div class="wechat-voice-playback-content">
+            <div class="wechat-voice-playback-text">${escapeHtml(recording.text || '')}</div>
+            <button class="wechat-voice-playback-btn" data-id="${recording.id}" title="播放">
+              <svg viewBox="0 0 24 24" width="20" height="20"><polygon points="5,3 19,12 5,21" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    html += '</div>';
+    contentEl.innerHTML = html;
+
+    // 绑定播放按钮事件
+    contentEl.querySelectorAll('.wechat-voice-playback-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = parseInt(btn.dataset.id);
+
+        try {
+          btn.disabled = true;
+          btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20"><rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/></svg>';
+
+          await playVoiceRecording(id);
+        } catch (err) {
+          console.error('[可乐] 播放语音失败:', err);
+          showToast('播放失败', '⚠️');
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20"><polygon points="5,3 19,12 5,21" fill="currentColor"/></svg>';
+        }
+      });
+    });
+
+    // 绑定删除按钮事件
+    contentEl.querySelectorAll('.wechat-voice-playback-delete').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = parseInt(btn.dataset.id);
+
+        if (confirm('确定要删除这条语音吗？')) {
+          try {
+            await deleteVoiceRecording(id);
+            showToast('已删除', '✓');
+            // 重新渲染
+            renderVoicePlaybackContent(contact);
+          } catch (err) {
+            console.error('[可乐] 删除语音失败:', err);
+            showToast('删除失败', '⚠️');
+          }
+        }
+      });
+    });
+
+  } catch (err) {
+    console.error('[可乐] 加载语音记录失败:', err);
+    contentEl.innerHTML = `
+      <div class="wechat-history-empty">
+        <div class="wechat-history-empty-icon">⚠️</div>
+        <div>加载失败</div>
+        <div style="font-size: 12px; color: var(--wechat-text-secondary);">${escapeHtml(err.message || '')}</div>
+      </div>
+    `;
+  }
 }
 
 function escapeHtml(text) {
@@ -1679,6 +1811,13 @@ function bindEvents() {
         return;
       }
 
+      if (service === 'voice-api') {
+        allPanels.filter(p => p !== 'wechat-voice-api-panel').forEach(p => document.getElementById(p)?.classList.add('hidden'));
+        const panel = document.getElementById('wechat-voice-api-panel');
+        panel?.classList.toggle('hidden');
+        return;
+      }
+
       const label = item.querySelector('span')?.textContent || '该';
       showToast(`"${label}" 功能开发中...`, 'info');
     });
@@ -2140,6 +2279,140 @@ function bindEvents() {
       refreshLogsList();
       showToast('日志已清空');
     }
+  });
+
+  // ===== 语音 API 面板事件 =====
+  // 关闭按钮
+  document.getElementById('wechat-voice-api-close')?.addEventListener('click', () => {
+    document.getElementById('wechat-voice-api-panel')?.classList.add('hidden');
+  });
+
+  // STT 密钥可见性切换
+  document.getElementById('wechat-stt-key-toggle')?.addEventListener('click', () => {
+    const keyInput = document.getElementById('wechat-stt-api-key');
+    if (keyInput) {
+      keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+    }
+  });
+
+  // TTS 密钥可见性切换
+  document.getElementById('wechat-tts-key-toggle')?.addEventListener('click', () => {
+    const keyInput = document.getElementById('wechat-tts-api-key');
+    if (keyInput) {
+      keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+    }
+  });
+
+  // 测试 STT API
+  document.getElementById('wechat-voice-api-test-stt')?.addEventListener('click', async () => {
+    const btn = document.getElementById('wechat-voice-api-test-stt');
+    const originalText = btn?.textContent;
+    if (btn) {
+      btn.textContent = '测试中...';
+      btn.disabled = true;
+    }
+
+    try {
+      // 先保存当前配置
+      const settings = getSettings();
+      settings.sttApiUrl = document.getElementById('wechat-stt-api-url')?.value?.trim() || '';
+      settings.sttApiKey = document.getElementById('wechat-stt-api-key')?.value?.trim() || '';
+      settings.sttModel = document.getElementById('wechat-stt-model')?.value?.trim() || '';
+
+      await testSttApi();
+      showToast('STT 连接成功！', '✓');
+    } catch (err) {
+      console.error('[可乐] STT 测试失败:', err);
+      showToast('STT 测试失败: ' + err.message, '⚠️');
+    } finally {
+      if (btn) {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+  });
+
+  // 测试 TTS API
+  document.getElementById('wechat-voice-api-test-tts')?.addEventListener('click', async () => {
+    const btn = document.getElementById('wechat-voice-api-test-tts');
+    const originalText = btn?.textContent;
+    if (btn) {
+      btn.textContent = '测试中...';
+      btn.disabled = true;
+    }
+
+    try {
+      // 先保存当前配置
+      const settings = getSettings();
+      settings.ttsApiUrl = document.getElementById('wechat-tts-api-url')?.value?.trim() || '';
+      settings.ttsApiKey = document.getElementById('wechat-tts-api-key')?.value?.trim() || '';
+      settings.ttsModel = document.getElementById('wechat-tts-model')?.value?.trim() || '';
+      settings.ttsVoice = document.getElementById('wechat-tts-voice')?.value?.trim() || '';
+      settings.ttsSpeed = parseFloat(document.getElementById('wechat-tts-speed')?.value) || 1;
+      settings.ttsEmotion = document.getElementById('wechat-tts-emotion')?.value?.trim() || '默认';
+      settings.ttsProxyUrl = document.getElementById('wechat-tts-proxy-url')?.value?.trim() || '';
+
+      const audioBlob = await testTtsApi();
+      console.log('[可乐] TTS 测试返回音频:', {
+        size: audioBlob?.size,
+        type: audioBlob?.type
+      });
+
+      if (!audioBlob || audioBlob.size < 100) {
+        throw new Error('返回的音频数据无效');
+      }
+
+      // 播放测试音频
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audio.volume = 1.0;
+
+      await new Promise((resolve, reject) => {
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl);
+          resolve();
+        };
+        audio.onerror = (e) => {
+          URL.revokeObjectURL(audioUrl);
+          reject(new Error('音频播放失败'));
+        };
+        audio.play().then(() => {
+          console.log('[可乐] 测试音频开始播放');
+        }).catch(reject);
+      });
+
+      showToast('TTS 测试成功！正在播放', '✓');
+    } catch (err) {
+      console.error('[可乐] TTS 测试失败:', err);
+      showToast('TTS 测试失败: ' + err.message, '⚠️');
+    } finally {
+      if (btn) {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+  });
+
+  // 保存语音 API 配置
+  document.getElementById('wechat-voice-api-save')?.addEventListener('click', () => {
+    const settings = getSettings();
+
+    // STT 配置
+    settings.sttApiUrl = document.getElementById('wechat-stt-api-url')?.value?.trim() || '';
+    settings.sttApiKey = document.getElementById('wechat-stt-api-key')?.value?.trim() || '';
+    settings.sttModel = document.getElementById('wechat-stt-model')?.value?.trim() || '';
+
+    // TTS 配置
+    settings.ttsApiUrl = document.getElementById('wechat-tts-api-url')?.value?.trim() || '';
+    settings.ttsApiKey = document.getElementById('wechat-tts-api-key')?.value?.trim() || '';
+    settings.ttsModel = document.getElementById('wechat-tts-model')?.value?.trim() || '';
+    settings.ttsVoice = document.getElementById('wechat-tts-voice')?.value?.trim() || '';
+    settings.ttsSpeed = parseFloat(document.getElementById('wechat-tts-speed')?.value) || 1;
+    settings.ttsEmotion = document.getElementById('wechat-tts-emotion')?.value?.trim() || '默认';
+    settings.ttsProxyUrl = document.getElementById('wechat-tts-proxy-url')?.value?.trim() || '';
+
+    requestSave();
+    showToast('语音 API 配置已保存', '✓');
   });
 
   // 绑定联系人点击

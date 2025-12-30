@@ -952,6 +952,71 @@ export function renderChatHistory(contact, chatHistory, indexOffset = 0) {
       return;
     }
 
+    // 检查是否是实时语音通话记录消息
+    const realVoiceCallRecordMatch = (msg.content || '').match(/^\[实时语音[：:](.+?)\]$/);
+    if (msg.isRealVoice || realVoiceCallRecordMatch) {
+      const callInfo = realVoiceCallRecordMatch ? realVoiceCallRecordMatch[1] : '00:00';
+      const isDuration = /^\d{2}:\d{2}$/.test(callInfo);
+      const isCancelled = callInfo === '已取消';
+      const isRejected = callInfo === '已拒绝' || callInfo === '对方已拒绝';
+      const isTimeout = callInfo === '对方已取消';
+
+      // 麦克风图标
+      const micIconSVG = `<svg class="wechat-call-record-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+        <line x1="12" y1="19" x2="12" y2="23"></line>
+        <line x1="8" y1="23" x2="16" y2="23"></line>
+      </svg>`;
+
+      let realVoiceCallRecordHTML;
+      if (isDuration) {
+        // 已接通：显示实时语音时长
+        realVoiceCallRecordHTML = `
+          <div class="wechat-call-record wechat-real-voice-record">
+            ${micIconSVG}
+            <span class="wechat-call-record-text">实时语音 ${callInfo}</span>
+          </div>
+        `;
+      } else if (isCancelled) {
+        realVoiceCallRecordHTML = `
+          <div class="wechat-call-record wechat-real-voice-record">
+            ${micIconSVG}
+            <span class="wechat-call-record-text">已取消</span>
+          </div>
+        `;
+      } else if (isRejected) {
+        realVoiceCallRecordHTML = `
+          <div class="wechat-call-record wechat-real-voice-record wechat-call-rejected">
+            ${micIconSVG}
+            <span class="wechat-call-record-text">${callInfo}</span>
+          </div>
+        `;
+      } else if (isTimeout) {
+        realVoiceCallRecordHTML = `
+          <div class="wechat-call-record wechat-real-voice-record">
+            ${micIconSVG}
+            <span class="wechat-call-record-text">对方已取消</span>
+          </div>
+        `;
+      } else {
+        realVoiceCallRecordHTML = `
+          <div class="wechat-call-record wechat-real-voice-record">
+            ${micIconSVG}
+            <span class="wechat-call-record-text">${escapeHtml(callInfo)}</span>
+          </div>
+        `;
+      }
+
+      if (msg.role === 'user') {
+        html += `<div class="wechat-message self" data-msg-index="${index}" data-msg-role="user"><div class="wechat-message-avatar">${getUserAvatarHTML()}</div><div class="wechat-message-content"><div class="wechat-bubble wechat-call-record-bubble">${realVoiceCallRecordHTML}</div></div></div>`;
+      } else {
+        html += `<div class="wechat-message" data-msg-index="${index}" data-msg-role="assistant"><div class="wechat-message-avatar">${avatarContent}</div><div class="wechat-message-content"><div class="wechat-bubble wechat-call-record-bubble">${realVoiceCallRecordHTML}</div></div></div>`;
+      }
+      lastTimestamp = msgTimestamp;
+      return;
+    }
+
     // 检查是否是视频通话记录消息
     const videoCallRecordMatch = (msg.content || '').match(/^\[视频通话[：:](.+?)\]$/);
     if (msg.isVideoCallRecord || videoCallRecordMatch) {
@@ -1533,6 +1598,11 @@ export function appendMessage(role, content, contact, isVoice = false, quote = n
 
   const messageDiv = document.createElement('div');
   messageDiv.className = `wechat-message ${role === 'user' ? 'self' : ''}`;
+
+  // 计算消息在chatHistory中的索引
+  const msgIndex = contact?.chatHistory ? contact.chatHistory.length - 1 : -1;
+  messageDiv.dataset.msgIndex = msgIndex;
+  messageDiv.dataset.msgRole = role === 'user' ? 'user' : 'assistant';
 
   const firstChar = contact?.name ? contact.name.charAt(0) : '?';
   const avatarContent = role === 'user'

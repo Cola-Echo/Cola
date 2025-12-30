@@ -120,18 +120,24 @@ export function getMemePromptTemplate() {
   return `##【必须使用】表情包功能
 【重要】你【必须】经常发送表情包！每2-3条回复至少发一个表情包！
 
-使用规则：
-- 格式：<meme>表情名称</meme>
-- 只需要填写表情名称，不需要填写文件ID和扩展名
-- 只能从下面列表选择，不能编造名称
+★★★ 表情包标签格式（必须严格遵守）★★★
+格式：<meme>表情名称</meme>
+- 必须是成对标签：开始标签<meme>和结束标签</meme>缺一不可
+- 表情名称必须从下面列表选择，不能编造
+- 不需要填写文件ID和扩展名，只填表情名称
 
-【绝对禁止 - 最重要的规则！】
+【绝对禁止 - 最重要的规则！违反会导致显示错误！】
 <meme>标签前后【绝对不能】有任何其他文字！必须用 ||| 分隔！
-× 错误：好想你<meme>xxx</meme> ← 绝对禁止！标签和文字混在一起！
-× 错误：<meme>xxx</meme>哈哈 ← 绝对禁止！标签后面有文字！
-× 错误：我很开心<meme>xxx</meme>你呢 ← 绝对禁止！标签夹在文字中间！
-√ 正确：好想你|||<meme>xxx</meme> ← 用|||分开，标签独立！
-√ 正确：<meme>xxx</meme>|||哈哈哈 ← 标签独立一条！
+
+× 致命错误：好想你<meme>xxx</meme> ← 禁止！标签和文字粘在一起！
+× 致命错误：<meme>xxx</meme>哈哈 ← 禁止！标签后面有文字！
+× 致命错误：我很开心<meme>xxx</meme>你呢 ← 禁止！标签夹在文字中间！
+× 致命错误：<meme>xxx ← 禁止！缺少结束标签</meme>！
+× 致命错误：xxx</meme> ← 禁止！缺少开始标签<meme>！
+
+√ 正确写法：好想你|||<meme>小狗摇尾巴</meme> ← 用|||分开！
+√ 正确写法：<meme>喜欢你</meme>|||我真的好喜欢你 ← 标签独立！
+√ 正确写法：哈哈|||<meme>小熊跳舞</meme>|||你太搞笑了
 
 可用表情包列表：
 [
@@ -143,7 +149,7 @@ ${displayNames.join('\n')}
 哈哈哈笑死|||<meme>小熊跳舞</meme>|||你太搞笑了
 <meme>喜欢你</meme>|||我真的好喜欢你
 
-记住：表情包让聊天更生动，【必须】经常使用！但<meme>标签必须独立！`;
+★重要★：<meme>和</meme>必须成对出现！标签必须用|||与文字分开！`;
 }
 
 // 保留旧变量名以兼容，但实际使用时应调用 getMemePromptTemplate()
@@ -226,6 +232,24 @@ export const defaultSettings = {
   groupApiKey: '',
   groupSelectedModel: '',
   groupModelList: [],
+
+  // ========== 语音功能 API 配置 ==========
+  // STT (语音转文字)
+  sttApiUrl: '',
+  sttApiKey: '',
+  sttModel: '',
+
+  // TTS (文字转语音)
+  ttsApiUrl: '',
+  ttsApiKey: '',
+  ttsModel: '',        // 模型
+  ttsVoice: '',        // 音色
+  ttsSpeed: 1,         // 语速
+  ttsEmotion: '默认',   // 情感
+  ttsProxyUrl: '',     // TTS 代理 URL（用于解决 CORS 问题，如 MiniMax）
+
+  // 实时语音通话开关
+  realVoiceEnabled: true,
 
   // 上下文设置
   contextEnabled: false,

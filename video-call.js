@@ -101,6 +101,7 @@ function showIncomingCallPage() {
   // 隐藏主界面元素，显示来电界面
   document.getElementById('wechat-video-call-center')?.classList.add('hidden');
   document.getElementById('wechat-video-call-chat')?.classList.add('hidden');
+  document.getElementById('wechat-video-call-input-area')?.classList.add('hidden');
   document.getElementById('wechat-video-call-actions')?.classList.add('hidden');
   incomingEl.classList.remove('hidden');
 
@@ -165,8 +166,9 @@ function showCallPage() {
     timeEl.classList.add('hidden'); // 拨打中不显示计时
   }
 
-  // 隐藏对话框
+  // 隐藏对话框和输入框
   document.getElementById('wechat-video-call-chat')?.classList.add('hidden');
+  document.getElementById('wechat-video-call-input-area')?.classList.add('hidden');
   document.getElementById('wechat-video-call-messages')?.innerHTML &&
     (document.getElementById('wechat-video-call-messages').innerHTML = '');
 
@@ -266,8 +268,9 @@ function onVideoCallConnected() {
   document.getElementById('wechat-video-call-incoming')?.classList.add('hidden');
   document.getElementById('wechat-video-call-actions')?.classList.remove('hidden');
 
-  // 显示对话框
+  // 显示对话框和输入框
   document.getElementById('wechat-video-call-chat')?.classList.remove('hidden');
+  document.getElementById('wechat-video-call-input-area')?.classList.remove('hidden');
 
   // 接通后才显示计时
   const timeEl = document.getElementById('wechat-video-call-time');

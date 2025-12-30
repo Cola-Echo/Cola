@@ -8,6 +8,7 @@ import { sendMessage, sendPhotoMessage, sendBatchMessages, appendMusicCardMessag
 import { isInGroupChat, sendGroupMessage, sendGroupPhotoMessage, sendGroupBatchMessages, getCurrentGroupIndex, appendGroupMessage, showGroupTypingIndicator, hideGroupTypingIndicator, callGroupAI, enforceGroupChatMemberLimit, appendGroupMusicCardMessage } from './group-chat.js';
 import { startVoiceCall } from './voice-call.js';
 import { startVideoCall } from './video-call.js';
+import { startRealVoiceCall } from './real-voice-call.js';
 import { showMusicPanel, initMusicEvents } from './music.js';
 import { showRedPacketPage } from './red-packet.js';
 import { showTransferPage } from './transfer.js';
@@ -655,6 +656,14 @@ function handleFuncItemClick(func) {
     case 'videocall':
       hideFuncPanel();
       startVideoCall();
+      return;
+    case 'realvoice':
+      hideFuncPanel();
+      if (isInGroupChat()) {
+        showToast('群聊暂不支持实时语音', 'info');
+        return;
+      }
+      startRealVoiceCall();
       return;
     case 'music':
       hideFuncPanel();

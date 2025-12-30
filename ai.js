@@ -971,6 +971,131 @@ ${voiceCallPrompt}`;
   return data.choices?.[0]?.message?.content || '...';
 }
 
+// 实时语音通话中调用 AI（纯文本输出，不带任何格式标记）
+export async function callRealVoiceAI(contact, userMessage, callMessages = [], initiator = 'user') {
+  // 获取 API 配置
+  let apiUrl, apiKey, apiModel;
+
+  if (contact.useCustomApi) {
+    apiUrl = contact.customApiUrl || '';
+    apiKey = contact.customApiKey || '';
+    apiModel = contact.customModel || '';
+
+    const globalConfig = getApiConfig();
+    if (!apiUrl) apiUrl = globalConfig.url;
+    if (!apiKey) apiKey = globalConfig.key;
+    if (!apiModel) apiModel = globalConfig.model;
+  } else {
+    const globalConfig = getApiConfig();
+    apiUrl = globalConfig.url;
+    apiKey = globalConfig.key;
+    apiModel = globalConfig.model;
+  }
+
+  if (!apiUrl) {
+    throw new Error('请先配置 API 地址');
+  }
+
+  if (!apiModel) {
+    throw new Error('请先选择模型');
+  }
+
+  // 实时语音专用提示词（纯文本，无格式）
+  const realVoicePrompt = `你正在和用户进行实时语音通话。
+
+【重要输出规则】
+- 只输出你说出口的话，不要有任何其他内容
+- 禁止使用小括号描述语气、动作、情绪
+- 禁止使用方括号、尖括号等任何标记
+- 禁止添加旁白、说明、注释
+- 一次输出完整的回复，不需要分段
+
+正确示例：
+喂？在呢在呢，怎么突然打电话过来啦，是不是想我了？
+
+错误示例（禁止）：
+喂？（好奇地）在呢~[开心]
+
+【通话规则】
+- 像真人打电话一样自然交流
+- 符合你的角色设定和性格
+- 积极与用户互动，根据话题自然展开对话
+- 可以说的比较多，像真人聊天`;
+
+  // 构建系统提示词
+  const baseSystemPrompt = buildSystemPrompt(contact, { allowStickers: false, allowMusicShare: false, allowCallRequests: false });
+  const systemPrompt = `${baseSystemPrompt}
+
+【当前场景：实时语音通话中】
+${realVoicePrompt}`;
+
+  // 构建消息
+  const messages = [{ role: 'system', content: systemPrompt }];
+
+  // 添加聊天历史
+  const chatHistory = contact.chatHistory || [];
+  chatHistory.forEach(msg => {
+    if (msg.isRecalled) {
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: '[用户撤回了一条消息]'
+      });
+      return;
+    }
+    messages.push({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    });
+  });
+
+  // 添加通话标记
+  if (initiator === 'ai') {
+    messages.push({ role: 'assistant', content: '[你主动拨打了实时语音，用户已接听]' });
+  } else {
+    messages.push({ role: 'user', content: '[用户发起了实时语音，你已接听]' });
+  }
+
+  // 添加通话历史
+  callMessages.forEach(msg => {
+    messages.push({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    });
+  });
+
+  // 添加当前消息
+  messages.push({ role: 'user', content: userMessage });
+
+  const chatUrl = apiUrl.replace(/\/+$/, '') + '/chat/completions';
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
+  const response = await fetchWithRetry(
+    chatUrl,
+    {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        model: apiModel,
+        messages: messages,
+        temperature: 1,
+        max_tokens: 500
+      })
+    },
+    { maxRetries: 3 }
+  );
+
+  if (!response.ok) {
+    throw new Error(await formatApiError(response, {}));
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '...';
+}
+
 // 视频通话中调用 AI（使用专门的视频通话提示词，包含场景描述）
 // initiator: 'user' 表示用户打给AI，'ai' 表示AI打给用户
 export async function callVideoAI(contact, userMessage, callMessages = [], initiator = 'user') {

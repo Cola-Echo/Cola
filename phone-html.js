@@ -228,15 +228,16 @@ export function generatePhoneHTML() {
                 <div class="wechat-func-item" data-func="photo"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>照片</span></div>
                 <div class="wechat-func-item" data-func="voicecall"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span>语音通话</span></div>
                 <div class="wechat-func-item" data-func="videocall"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="13" height="12" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M22 8l-7 4 7 4V8z" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>视频通话</span></div>
+                <div class="wechat-func-item" data-func="realvoice"><div class="wechat-func-icon" style="background: linear-gradient(135deg, #00bcd4, #009688);"><svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 00-4 4v7a4 4 0 008 0V5a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>实时语音</span></div>
                 <div class="wechat-func-item" data-func="location"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="9" r="2.5" fill="currentColor"/></svg></div><span>位置</span></div>
                 <div class="wechat-func-item" data-func="redpacket"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4 8h16" stroke="currentColor" stroke-width="1.5"/></svg></div><span>红包</span></div>
                 <div class="wechat-func-item" data-func="gift"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 8v13M3 12h18" stroke="currentColor" stroke-width="1.5"/><path d="M12 8c-2-4-6-4-6 0s4 0 6 0c2 0 6-4 6 0s-4 4-6 0" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>礼物</span></div>
                 <div class="wechat-func-item" data-func="transfer"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2 10h20" stroke="currentColor" stroke-width="1.5"/><path d="M6 15h4M14 15h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><span>转账</span></div>
-                <div class="wechat-func-item" data-func="multi"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><span>多条消息</span></div>
               </div>
             </div>
             <div class="wechat-func-page" data-page="1">
               <div class="wechat-func-grid">
+                <div class="wechat-func-item" data-func="multi"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><span>多条消息</span></div>
                 <div class="wechat-func-item" data-func="voice"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 00-4 4v7a4 4 0 008 0V5a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>语音输入</span></div>
                 <div class="wechat-func-item" data-func="listen"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0118 0v6" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>一起听</span></div>
                 <div class="wechat-func-item" data-func="music"><div class="wechat-func-icon"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>音乐</span></div>
@@ -292,6 +293,7 @@ export function generatePhoneHTML() {
       ${generateModalsHTML(settings)}
       ${generateVoiceCallPageHTML()}
       ${generateVideoCallPageHTML()}
+      ${generateRealVoiceCallPageHTML()}
       ${generateMusicPanelHTML()}
       ${generateListenTogetherHTML()}
       ${generateMomentsPageHTML()}
@@ -767,6 +769,7 @@ function generateServicePageHTML(settings) {
           <div class="wechat-service-section-title">AI功能</div>
           <div class="wechat-service-grid">
             <div class="wechat-service-item" data-service="meme-stickers"><div class="wechat-service-icon purple" style="background: linear-gradient(135deg, #9c27b0, #e91e63);"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="9" r="1.5" fill="currentColor"/><path d="M7 14c1.5 3 4 4 5 4s3.5-1 5-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>Meme表情</span></div>
+            <div class="wechat-service-item" data-service="voice-api"><div class="wechat-service-icon" style="background: linear-gradient(135deg, #00bcd4, #009688);"><svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 00-4 4v7a4 4 0 008 0V5a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>语音API</span></div>
           </div>
         </div>
         <div class="wechat-service-section">
@@ -800,6 +803,77 @@ function generateServicePageHTML(settings) {
               <button class="wechat-btn wechat-btn-block" id="wechat-summary-template-reset" style="flex: 1;">恢复默认</button>
               <button class="wechat-btn wechat-btn-primary wechat-btn-block" id="wechat-summary-template-save" style="flex: 1;">保存模板</button>
             </div>
+          </div>
+        </div>
+        <!-- 语音 API 设置面板 -->
+        <div class="wechat-service-panel hidden" id="wechat-voice-api-panel">
+          <div class="wechat-panel-header">
+            <span class="wechat-panel-title">语音 API 设置</span>
+            <button class="wechat-panel-close" data-panel="wechat-voice-api-panel">×</button>
+          </div>
+          <div style="padding: 16px; max-height: 70vh; overflow-y: auto;">
+            <div style="font-size: 13px; font-weight: bold; color: #00bcd4; margin-bottom: 10px;">语音识别 (STT)</div>
+            <div style="font-size: 11px; color: var(--wechat-text-secondary); margin-bottom: 8px;">将语音转换为文字</div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 12px; margin-bottom: 4px;">API 地址</div>
+              <input type="text" class="wechat-settings-input" id="wechat-stt-api-url" placeholder="https://api.example.com/v1/audio/transcriptions" value="${settings.sttApiUrl || ''}" style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 12px; margin-bottom: 4px;">API 密钥</div>
+              <div class="wechat-settings-input-wrapper">
+                <input type="password" class="wechat-settings-input" id="wechat-stt-api-key" placeholder="sk-..." value="${settings.sttApiKey || ''}" style="width: 100%; box-sizing: border-box;">
+                <button class="wechat-settings-eye-btn" id="wechat-stt-key-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg></button>
+              </div>
+            </div>
+            <div style="margin-bottom: 16px;">
+              <div style="font-size: 12px; margin-bottom: 4px;">模型</div>
+              <input type="text" class="wechat-settings-input" id="wechat-stt-model" placeholder="whisper-1 或 iic/SenseVoiceSmall" value="${settings.sttModel || ''}" style="width: 100%; box-sizing: border-box;">
+            </div>
+
+            <div style="border-top: 1px solid var(--wechat-border); margin: 16px 0;"></div>
+
+            <div style="font-size: 13px; font-weight: bold; color: #009688; margin-bottom: 10px;">语音合成 (TTS)</div>
+            <div style="font-size: 11px; color: var(--wechat-text-secondary); margin-bottom: 8px;">将文字转换为语音</div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 12px; margin-bottom: 4px;">API 地址</div>
+              <input type="text" class="wechat-settings-input" id="wechat-tts-api-url" placeholder="https://api.example.com/v1/audio/speech" value="${settings.ttsApiUrl || ''}" style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 12px; margin-bottom: 4px;">API 密钥</div>
+              <div class="wechat-settings-input-wrapper">
+                <input type="password" class="wechat-settings-input" id="wechat-tts-api-key" placeholder="sk-..." value="${settings.ttsApiKey || ''}" style="width: 100%; box-sizing: border-box;">
+                <button class="wechat-settings-eye-btn" id="wechat-tts-key-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg></button>
+              </div>
+            </div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 12px; margin-bottom: 4px;">模型</div>
+              <input type="text" class="wechat-settings-input" id="wechat-tts-model" placeholder="gemini-2.5-flash-preview-tts / tts-1" value="${settings.ttsModel || ''}" style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 12px; margin-bottom: 4px;">音色</div>
+              <input type="text" class="wechat-settings-input" id="wechat-tts-voice" placeholder="achird / alloy / nova" value="${settings.ttsVoice || ''}" style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+              <div style="flex: 1;">
+                <div style="font-size: 12px; margin-bottom: 4px;">语速</div>
+                <input type="number" class="wechat-settings-input" id="wechat-tts-speed" placeholder="1.0" value="${settings.ttsSpeed || 1}" min="0.5" max="2" step="0.1" style="width: 100%; box-sizing: border-box;">
+              </div>
+              <div style="flex: 1;">
+                <div style="font-size: 12px; margin-bottom: 4px;">情感</div>
+                <input type="text" class="wechat-settings-input" id="wechat-tts-emotion" placeholder="默认" value="${settings.ttsEmotion || '默认'}" style="width: 100%; box-sizing: border-box;">
+              </div>
+            </div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 12px; margin-bottom: 4px;">代理 URL <span style="color: #999; font-weight: normal;">(MiniMax 需要)</span></div>
+              <input type="text" class="wechat-settings-input" id="wechat-tts-proxy-url" placeholder="http://你的服务器:3001" value="${settings.ttsProxyUrl || ''}" style="width: 100%; box-sizing: border-box;">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 16px;">
+              <button class="wechat-btn wechat-btn-small" id="wechat-voice-api-test-stt" style="flex: 1; background: #00bcd4; color: white;">测试 STT</button>
+              <button class="wechat-btn wechat-btn-small" id="wechat-voice-api-test-tts" style="flex: 1; background: #009688; color: white;">测试 TTS</button>
+            </div>
+            <button class="wechat-btn wechat-btn-primary wechat-btn-block" id="wechat-voice-api-save" style="margin-top: 10px;">保存配置</button>
+            <div id="wechat-voice-api-status" style="font-size: 12px; color: var(--wechat-text-secondary); margin-top: 8px; text-align: center;"></div>
           </div>
         </div>
       </div>
@@ -944,6 +1018,23 @@ function generateModalsHTML(settings) {
         </div>
       </div>
     </div>
+    <!-- 语音回放选择弹窗 -->
+    <div id="wechat-voice-save-modal" class="wechat-modal hidden">
+      <div class="wechat-modal-content" style="position: relative; max-width: 400px;">
+        <button class="wechat-modal-close-x" id="wechat-voice-save-cancel" title="关闭">×</button>
+        <div class="wechat-modal-title">保存语音回放</div>
+        <div class="wechat-voice-save-hint" style="font-size: 12px; color: var(--wechat-text-secondary); margin-bottom: 12px;">
+          选择想保留的语音，以后可以在聊天记录中回放
+        </div>
+        <div class="wechat-voice-save-list" id="wechat-voice-save-list" style="max-height: 300px; overflow-y: auto;">
+          <!-- 语音列表将动态生成 -->
+        </div>
+        <div class="wechat-modal-actions" style="margin-top: 16px; display: flex; gap: 10px;">
+          <button class="wechat-btn" id="wechat-voice-save-skip" style="flex: 1;">不保存</button>
+          <button class="wechat-btn wechat-btn-primary" id="wechat-voice-save-confirm" style="flex: 1;">保存选中</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -969,12 +1060,14 @@ function generateVoiceCallPageHTML() {
       <!-- 通话中对话框 -->
       <div class="wechat-voice-call-chat hidden" id="wechat-voice-call-chat">
         <div class="wechat-voice-call-messages" id="wechat-voice-call-messages"></div>
-        <div class="wechat-voice-call-input-area">
-          <input type="text" class="wechat-voice-call-input" id="wechat-voice-call-input" placeholder="输入文字...">
-          <button class="wechat-voice-call-send" id="wechat-voice-call-send">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-          </button>
-        </div>
+      </div>
+
+      <!-- 通话输入框（独立于对话框，放在按钮上方） -->
+      <div class="wechat-voice-call-input-area hidden" id="wechat-voice-call-input-area">
+        <input type="text" class="wechat-voice-call-input" id="wechat-voice-call-input" placeholder="输入文字...">
+        <button class="wechat-voice-call-send" id="wechat-voice-call-send">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
       </div>
 
       <!-- 来电接听按钮（AI发起时显示） -->
@@ -1050,12 +1143,14 @@ function generateVideoCallPageHTML() {
       <!-- 通话中对话框 -->
       <div class="wechat-video-call-chat hidden" id="wechat-video-call-chat">
         <div class="wechat-video-call-messages" id="wechat-video-call-messages"></div>
-        <div class="wechat-video-call-input-area">
-          <input type="text" class="wechat-video-call-input" id="wechat-video-call-input" placeholder="输入文字...">
-          <button class="wechat-video-call-send" id="wechat-video-call-send">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-          </button>
-        </div>
+      </div>
+
+      <!-- 通话输入框（独立于对话框，放在按钮上方） -->
+      <div class="wechat-video-call-input-area hidden" id="wechat-video-call-input-area">
+        <input type="text" class="wechat-video-call-input" id="wechat-video-call-input" placeholder="输入文字...">
+        <button class="wechat-video-call-send" id="wechat-video-call-send">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
       </div>
 
       <!-- 底部操作栏 -->
@@ -1107,6 +1202,82 @@ function generateVideoCallPageHTML() {
             </div>
             <span>接听</span>
           </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 实时语音通话页面 HTML
+function generateRealVoiceCallPageHTML() {
+  return `
+    <!-- 实时语音通话页面 -->
+    <div id="wechat-real-voice-call-page" class="wechat-real-voice-call-page hidden">
+      <div class="wechat-real-voice-call-header">
+        <button class="wechat-real-voice-call-minimize" id="wechat-real-voice-call-minimize">
+          <svg viewBox="0 0 24 24" width="24" height="24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M9 3v18M3 9h6" stroke="currentColor" stroke-width="1.5"/></svg>
+        </button>
+        <span class="wechat-real-voice-call-time hidden" id="wechat-real-voice-call-time">00:00</span>
+        <span style="width: 24px;"></span>
+      </div>
+
+      <div class="wechat-real-voice-call-content">
+        <div class="wechat-real-voice-call-avatar" id="wechat-real-voice-call-avatar"></div>
+        <div class="wechat-real-voice-call-name" id="wechat-real-voice-call-name"></div>
+        <div class="wechat-real-voice-call-status" id="wechat-real-voice-call-status">等待对方接受邀请</div>
+      </div>
+
+      <!-- 通话中消息显示区域 -->
+      <div class="wechat-real-voice-call-chat hidden" id="wechat-real-voice-call-chat">
+        <div class="wechat-real-voice-call-messages" id="wechat-real-voice-call-messages"></div>
+      </div>
+
+      <!-- 说话按钮区域 -->
+      <div class="wechat-real-voice-call-talk-area hidden" id="wechat-real-voice-call-talk-area">
+        <div class="wechat-real-voice-call-talk-btn" id="wechat-real-voice-call-talk-btn">点击 说话</div>
+        <div class="wechat-real-voice-call-talk-hint">点击开始，再点击发送</div>
+        <!-- 文字输入区域（不支持录音时使用） -->
+        <div class="wechat-real-voice-call-text-input-area" id="wechat-real-voice-call-text-input-area">
+          <input type="text" class="wechat-real-voice-call-text-input" id="wechat-real-voice-call-text-input" placeholder="打字说话...">
+          <button class="wechat-real-voice-call-text-send" id="wechat-real-voice-call-text-send">发送</button>
+        </div>
+      </div>
+
+      <!-- 来电接听按钮（AI发起时显示） -->
+      <div class="wechat-real-voice-call-incoming-actions hidden" id="wechat-real-voice-call-incoming-actions">
+        <div class="wechat-real-voice-call-action" id="wechat-real-voice-call-reject">
+          <div class="wechat-real-voice-call-action-btn reject">
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 01-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" fill="currentColor"/></svg>
+          </div>
+          <span class="wechat-real-voice-call-action-label">拒绝</span>
+        </div>
+        <div class="wechat-real-voice-call-action" id="wechat-real-voice-call-accept">
+          <div class="wechat-real-voice-call-action-btn accept">
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 1a4 4 0 00-4 4v7a4 4 0 008 0V5a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+          </div>
+          <span class="wechat-real-voice-call-action-label">接听</span>
+        </div>
+      </div>
+
+      <!-- 通话中操作按钮（接通后显示） -->
+      <div class="wechat-real-voice-call-actions hidden" id="wechat-real-voice-call-actions">
+        <div class="wechat-real-voice-call-action" id="wechat-real-voice-call-mute">
+          <div class="wechat-real-voice-call-action-btn">
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 1a4 4 0 00-4 4v7a4 4 0 008 0V5a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+          </div>
+          <span class="wechat-real-voice-call-action-label">静音</span>
+        </div>
+        <div class="wechat-real-voice-call-action" id="wechat-real-voice-call-hangup">
+          <div class="wechat-real-voice-call-action-btn hangup">
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 01-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" fill="currentColor"/></svg>
+          </div>
+          <span class="wechat-real-voice-call-action-label">挂断</span>
+        </div>
+        <div class="wechat-real-voice-call-action" id="wechat-real-voice-call-speaker">
+          <div class="wechat-real-voice-call-action-btn">
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M11 5L6 9H2v6h4l5 4V5z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+          </div>
+          <span class="wechat-real-voice-call-action-label">扬声器</span>
         </div>
       </div>
     </div>
@@ -1654,11 +1825,12 @@ function generateHistoryPageHTML() {
         <div style="width: 24px;"></div>
       </div>
 
-      <!-- 四个标签按钮 -->
+      <!-- 五个标签按钮 -->
       <div class="wechat-history-tabs">
         <button class="wechat-history-tab active" data-tab="listen">一起听</button>
         <button class="wechat-history-tab" data-tab="voice">语音通话</button>
         <button class="wechat-history-tab" data-tab="video">视频通话</button>
+        <button class="wechat-history-tab wechat-history-tab-green" data-tab="playback">语音回放</button>
         <button class="wechat-history-tab wechat-history-tab-pink" data-tab="toy">心动瞬间</button>
       </div>
 

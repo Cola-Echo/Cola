@@ -688,6 +688,14 @@ export function bindMessageBubbleEvents(container) {
 
 // 获取真实的消息索引（排除时间标签等）
 function getRealMsgIndex(container, msgElement) {
+  // 优先从元素属性获取（新消息会有这个属性）
+  if (msgElement?.dataset?.msgIndex !== undefined) {
+    const idx = parseInt(msgElement.dataset.msgIndex);
+    if (!isNaN(idx) && idx >= 0) {
+      return idx;
+    }
+  }
+
   const settings = getSettings();
   const contact = settings.contacts[currentChatIndex];
   if (!contact || !contact.chatHistory) return -1;
@@ -699,7 +707,7 @@ function getRealMsgIndex(container, msgElement) {
   if (visualIndex < 0) return -1;
 
   // 需要计算真实索引（chatHistory中可能包含marker消息和撤回消息）
-  // 注意：包含 ||| 的消息在渲染时会被拆分成多条可视消息，需要正确计算
+  // 注意：包含 ||| 或 <meme> 的消息在渲染时会被拆分成多条可视消息，需要正确计算
   let realIndex = -1;
   let visualCount = 0;
 
@@ -712,9 +720,10 @@ function getRealMsgIndex(container, msgElement) {
     let visualMsgCount = 1;
     const content = msg.content || '';
     const isSpecial = msg.isVoice || msg.isSticker || msg.isPhoto || msg.isMusic;
-    if (!isSpecial && content.indexOf('|||') >= 0) {
-      // 按 ||| 分割后有多少个非空部分
-      const parts = content.split('|||').map(p => p.trim()).filter(p => p);
+    // 检查是否包含 ||| 或 <meme> 标签（这些会导致消息被分割显示）
+    if (!isSpecial && (content.indexOf('|||') >= 0 || /<\s*meme\s*>/i.test(content))) {
+      // 使用 splitAIMessages 计算实际分割数量
+      const parts = splitAIMessages(content).filter(p => p && p.trim());
       visualMsgCount = parts.length || 1;
     }
 

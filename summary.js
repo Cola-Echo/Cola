@@ -311,23 +311,23 @@ export function generateSummaryPrompt(allChats, cupNumber) {
     prompt = settings.customSummaryTemplate.trim() + '\n\n';
   } else {
     // 使用默认模板（纯对话记录模式）
-    prompt = `你的任务是将这段【线上聊天记录】原样整理成JSON格式。
+    prompt = `【重要】你必须且只能输出一个JSON对象，禁止输出任何其他内容。
 
-【核心原则】
-- 原样保留：完整复制每一条对话，不做任何修改、润色或总结
-- 格式统一：按"发言者: 内容"格式逐行记录
-- 仅提取关键词：从对话中提取3-5个核心关键词用于检索触发
+你的任务是将聊天记录整理成JSON格式。
 
-【输出格式要求】
-- 只输出一个JSON对象
-- 不要使用markdown代码块
-- 直接以 { 开头，以 } 结尾
-- keys: 3-5个能代表本次聊天核心内容的关键词（人名、地点、事件等）
-- content: 以"以下是线上聊天内容："开头，然后原样复制对话记录，每条一行，格式为"发言者: 内容"
-- comment: "${getCupName(cupNumber)}"
+【输出规则 - 必须严格遵守】
+1. 直接以 { 开头，以 } 结尾
+2. 禁止使用markdown代码块（禁止\`\`\`）
+3. 禁止输出任何解释、思考、前言
+4. 禁止在JSON前后添加任何文字
 
-【JSON示例】
-{"keys":["公园","约会","周末"],"content":"以下是线上聊天内容：\\n{{user}}: 今天去哪玩？\\n{{char}}: 去公园吧\\n{{user}}: 好呀\\n{{char}}: 那我们下午2点见","comment":"${getCupName(cupNumber)}"}
+【JSON字段说明】
+- "keys": 数组，3-5个关键词（人名、地点、事件等）
+- "content": 字符串，以"以下是线上聊天内容："开头，然后逐行记录对话，格式为"发言者: 内容"，用\\n分隔
+- "comment": "${getCupName(cupNumber)}"
+
+【正确输出示例】
+{"keys":["公园","约会","周末"],"content":"以下是线上聊天内容：\\n{{user}}: 今天去哪玩？\\n{{char}}: 去公园吧","comment":"${getCupName(cupNumber)}"}
 
 `;
   }
@@ -469,13 +469,13 @@ export function generateSummaryPrompt(allChats, cupNumber) {
     });
   });
 
-  prompt += `\n请将以上聊天记录原样整理成${getCupName(cupNumber)}的JSON：`;
+  prompt += `\n【立即输出JSON】请将以上聊天记录整理成${getCupName(cupNumber)}的JSON对象（直接以{开头）：`;
 
   return prompt;
 }
 
 // 调用总结API
-export async function callSummaryAPI(prompt) {
+export async function callSummaryAPI(prompt, cupNumber = 1) {
   const settings = getSettings();
   const apiUrl = settings.summaryApiUrl;
   const apiKey = settings.summaryApiKey;
@@ -513,14 +513,16 @@ export async function callSummaryAPI(prompt) {
   const content = data.choices?.[0]?.message?.content || '';
 
   // 解析JSON
-  const parsed = parseJSONResponse(content);
+  const parsed = parseJSONResponse(content, cupNumber);
   if (parsed) return parsed;
 
   throw new Error('AI返回内容为空或无法解析');
 }
 
 // 解析JSON响应
-function parseJSONResponse(content) {
+function parseJSONResponse(content, cupNumber = 1) {
+  if (!content || !content.trim()) return null;
+
   // 方法1: 直接解析
   try {
     const result = JSON.parse(content);
@@ -545,16 +547,26 @@ function parseJSONResponse(content) {
     }
   } catch (e) {}
 
-  // 降级方案
-  if (content && content.trim().length > 20) {
-    const words = content.match(/[\u4e00-\u9fa5]{2,}/g) || ['聊天', '记录'];
-    return {
-      keys: [...new Set(words)].slice(0, 5),
-      content: content.substring(0, 30000).replace(/```[\s\S]*?```/g, '').trim(),
-      comment: '感情记录'
-    };
-  }
+  // 方法4: 尝试修复常见的JSON格式问题
+  try {
+    // 替换中文冒号和引号
+    let fixed = content
+      .replace(/：/g, ':')
+      .replace(/"/g, '"')
+      .replace(/"/g, '"')
+      .replace(/'/g, "'")
+      .replace(/'/g, "'");
 
+    const firstBrace = fixed.indexOf('{');
+    const lastBrace = fixed.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      const result = JSON.parse(fixed.substring(firstBrace, lastBrace + 1));
+      if (result.keys && result.content) return result;
+    }
+  } catch (e) {}
+
+  // 不再使用降级方案，返回null让调用者处理错误
+  console.error('[可乐] JSON解析失败，原始内容前500字符:', content.substring(0, 500));
   return null;
 }
 
@@ -732,7 +744,7 @@ export async function executeSummary() {
         // 为单个聊天生成总结
         updateProgress('🤖 分析 ' + chat.contactName + ' 的' + getCupName(cupNumber) + '...');
         const prompt = generateSummaryPrompt([chat], cupNumber);
-        const entry = await callSummaryAPI(prompt);
+        const entry = await callSummaryAPI(prompt, cupNumber);
 
         // 保存到收藏
         saveEntryToFavorites(entry, cupNumber, lorebookName);

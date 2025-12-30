@@ -106,6 +106,11 @@ function showCallPage() {
   if (chatEl) {
     chatEl.classList.add('hidden');
   }
+  // 隐藏输入框
+  const inputAreaEl = document.getElementById('wechat-voice-call-input-area');
+  if (inputAreaEl) {
+    inputAreaEl.classList.add('hidden');
+  }
   const messagesEl = document.getElementById('wechat-voice-call-messages');
   if (messagesEl) {
     messagesEl.innerHTML = '';
@@ -242,6 +247,11 @@ function onCallConnected() {
   const chatEl = document.getElementById('wechat-voice-call-chat');
   if (chatEl) {
     chatEl.classList.remove('hidden');
+  }
+  // 显示输入框
+  const inputAreaEl = document.getElementById('wechat-voice-call-input-area');
+  if (inputAreaEl) {
+    inputAreaEl.classList.remove('hidden');
   }
 
   // 切换到通话中按钮（隐藏来电按钮，显示通话控制按钮）
