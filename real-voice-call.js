@@ -58,10 +58,10 @@ export function startRealVoiceCall(initiator = 'user', contactIndex = currentCha
     return;
   }
 
-  // 检查浏览器是否支持录音
-  if (!AudioRecorder.isSupported()) {
-    alert('您的浏览器不支持录音功能');
-    return;
+  // 检查浏览器是否支持录音（不阻止进入，可以用文字输入）
+  const supportsRecording = AudioRecorder.isSupported();
+  if (!supportsRecording) {
+    console.log('[可乐] 浏览器不支持录音，将使用文字输入模式');
   }
 
   callState.contactName = contact.name;
@@ -152,7 +152,17 @@ function showCallPage() {
 
   // 语音按钮：只有支持录音时显示
   if (talkBtn) talkBtn.style.display = supportsRecording ? 'flex' : 'none';
-  if (talkHint) talkHint.style.display = supportsRecording ? 'block' : 'none';
+  if (talkHint) {
+    if (supportsRecording) {
+      talkHint.style.display = 'block';
+      talkHint.textContent = '点击开始说话，再次点击发送';
+    } else {
+      // 显示不支持的原因
+      talkHint.style.display = 'block';
+      talkHint.textContent = '💡 ' + AudioRecorder.getUnsupportedReason();
+      talkHint.style.color = '#ff9800';
+    }
+  }
   // 文字输入：始终显示，方便用户选择打字或语音
   if (textInputArea) textInputArea.style.display = 'flex';
 

@@ -609,7 +609,35 @@ export class AudioRecorder {
    * @returns {boolean}
    */
   static isSupported() {
-    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    const hasMediaRecorder = typeof MediaRecorder !== 'undefined';
+    const isSecureContext = window.isSecureContext;
+
+    console.log('[可乐] 录音支持检测:', {
+      getUserMedia: hasGetUserMedia,
+      MediaRecorder: hasMediaRecorder,
+      isSecureContext: isSecureContext,
+      protocol: location.protocol
+    });
+
+    return hasGetUserMedia && hasMediaRecorder;
+  }
+
+  /**
+   * 获取不支持录音的原因
+   * @returns {string}
+   */
+  static getUnsupportedReason() {
+    if (!window.isSecureContext) {
+      return '需要 HTTPS 安全连接才能使用录音功能';
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return '浏览器不支持 getUserMedia API';
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      return '浏览器不支持 MediaRecorder API（iOS Safari 需要 iOS 14.3+）';
+    }
+    return '未知原因';
   }
 }
 
