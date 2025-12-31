@@ -814,11 +814,11 @@ function restorePhone() {
 
   phone.classList.remove('minimized');
 
-  // 恢复原始位置或居中
-  if (settings.phoneOriginalPosition) {
-    phone.style.left = settings.phoneOriginalPosition.left;
-    phone.style.top = settings.phoneOriginalPosition.top;
-  }
+  // 清除缩小前保存的位置，让居中函数重新计算
+  delete settings.phoneOriginalPosition;
+
+  // 恢复到屏幕中央
+  centerPhoneInViewport({ force: true });
 
   // 恢复时根据设置显示悬浮球
   if (settings.floatingBallEnabled !== false) {
