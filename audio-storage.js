@@ -275,3 +275,51 @@ export async function getStorageStats() {
     };
   });
 }
+
+/**
+ * 获取所有语音记录，按联系人分组
+ * @returns {Promise<Object>} { contactIndex: { count, totalDuration } }
+ */
+export async function getAllVoiceRecordingsGroupedByContact() {
+  await initAudioDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const records = request.result;
+      const grouped = {};
+
+      records.forEach(record => {
+        const idx = record.contactIndex;
+        if (!grouped[idx]) {
+          grouped[idx] = { count: 0, totalDuration: 0 };
+        }
+        grouped[idx].count++;
+        grouped[idx].totalDuration += record.duration || 0;
+      });
+
+      resolve(grouped);
+    };
+
+    request.onerror = () => {
+      reject(request.error);
+    };
+  });
+}
+
+/**
+ * 删除指定联系人的所有语音记录
+ * @param {number} contactIndex - 联系人索引
+ * @returns {Promise<number>} 删除的记录数量
+ */
+export async function deleteVoiceRecordingsByContact(contactIndex) {
+  const records = await getVoiceRecordingsByContact(contactIndex);
+  for (const record of records) {
+    await deleteVoiceRecording(record.id);
+  }
+  console.log(`[可乐] 已删除联系人 ${contactIndex} 的 ${records.length} 条语音记录`);
+  return records.length;
+}

@@ -118,6 +118,10 @@ export function generatePhoneHTML() {
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M7 16.5c0-2 2.2-3.5 5-3.5s5 1.5 5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
           <span id="wechat-floating-ball-text">悬浮窗</span>
         </div>
+        <div class="wechat-dropdown-item" id="wechat-menu-clear-cache">
+          <svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          <span>清除缓存</span>
+        </div>
       </div>
 
       <!-- 添加朋友页面 -->

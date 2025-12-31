@@ -38,7 +38,7 @@ import { initGiftEvents } from './gift.js';
 import { initCropper } from './cropper.js';
 import { createFloatingBall, showFloatingBall, hideFloatingBall } from './floating-ball.js';
 import { testSttApi, testTtsApi } from './voice-api.js';
-import { getVoiceRecordingsByContact, deleteVoiceRecording, playVoiceRecording } from './audio-storage.js';
+import { getVoiceRecordingsByContact, deleteVoiceRecording, playVoiceRecording, getAllVoiceRecordingsGroupedByContact, deleteVoiceRecordingsByContact } from './audio-storage.js';
 
 // ========== 历史记录功能 ==========
 let currentHistoryTab = 'listen';
@@ -513,6 +513,211 @@ function updateFloatingBallMenuText(enabled) {
   }
 }
 
+// 清除孤立缓存（已删除联系人/群聊的总结历史和语音记录）
+async function clearOrphanedCache() {
+  const settings = getSettings();
+  const contacts = settings.contacts || [];
+  const groupChats = settings.groupChats || [];
+  const lorebooks = settings.selectedLorebooks || [];
+
+  // 获取当前有效的联系人ID和名称
+  const validContactIds = new Set(contacts.map(c => c.id).filter(id => id));
+  const validContactNames = new Set(contacts.map(c => c.name).filter(n => n));
+  const validGroupNames = new Set(groupChats.map(g => g.name).filter(n => n));
+  const validContactIndexes = new Set(contacts.map((_, idx) => idx));
+
+  // 查找孤立的总结世界书
+  const orphanedSummaries = [];
+
+  lorebooks.forEach((lb, idx) => {
+    const isSummaryBook = lb.fromSummary === true ||
+      (lb.name?.startsWith('【可乐】和') && lb.name?.endsWith('的聊天'));
+
+    if (isSummaryBook) {
+      const nameMatch = lb.name?.match(/^【可乐】和(.+)的聊天$/);
+      const linkedName = nameMatch ? nameMatch[1] : null;
+
+      const contactExists = linkedName && validContactNames.has(linkedName);
+      const groupExists = linkedName && validGroupNames.has(linkedName);
+      const linkedById = lb.characterId && validContactIds.has(lb.characterId);
+
+      if (!contactExists && !groupExists && !linkedById) {
+        const cupCount = lb.entries?.length || 0;
+        orphanedSummaries.push({
+          type: 'summary',
+          name: lb.name,
+          linkedName: linkedName || '未知',
+          index: idx,
+          cupCount
+        });
+      }
+    }
+  });
+
+  // 查找孤立的语音记录
+  const orphanedVoices = [];
+  try {
+    const voiceGroups = await getAllVoiceRecordingsGroupedByContact();
+    for (const [contactIdxStr, data] of Object.entries(voiceGroups)) {
+      const contactIdx = parseInt(contactIdxStr);
+      // 如果索引超出当前联系人范围，则为孤立数据
+      if (!validContactIndexes.has(contactIdx)) {
+        orphanedVoices.push({
+          type: 'voice',
+          contactIndex: contactIdx,
+          count: data.count,
+          totalDuration: data.totalDuration
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[可乐] 获取语音记录失败:', err);
+  }
+
+  // 如果没有孤立数据
+  if (orphanedSummaries.length === 0 && orphanedVoices.length === 0) {
+    showToast('没有发现需要清理的缓存数据');
+    return;
+  }
+
+  // 显示选择弹窗
+  showCacheCleanupModal(orphanedSummaries, orphanedVoices);
+}
+
+// 显示缓存清理选择弹窗
+function showCacheCleanupModal(orphanedSummaries, orphanedVoices) {
+  document.getElementById('wechat-cache-cleanup-modal')?.remove();
+
+  const hasSummaries = orphanedSummaries.length > 0;
+  const hasVoices = orphanedVoices.length > 0;
+
+  const modal = document.createElement('div');
+  modal.className = 'wechat-modal';
+  modal.id = 'wechat-cache-cleanup-modal';
+  modal.innerHTML = `
+    <div class="wechat-modal-content" style="position: relative; max-width: 380px; max-height: 80vh; margin: auto;">
+      <button class="wechat-modal-close-x" id="wechat-cache-modal-close">×</button>
+      <div class="wechat-modal-title">清除缓存</div>
+      <div style="font-size: 12px; color: var(--wechat-text-secondary); margin-bottom: 12px; padding: 0 4px;">
+        勾选要清除的项目：
+      </div>
+      <div style="max-height: 45vh; overflow-y: auto; margin-bottom: 15px;">
+        ${hasSummaries ? `
+          <div style="font-size: 12px; color: var(--wechat-text-secondary); padding: 8px; background: var(--wechat-bg-secondary); border-radius: 4px; margin-bottom: 8px;">
+            📝 总结历史（已删除联系人/群聊）
+          </div>
+          ${orphanedSummaries.map(item => `
+            <label class="wechat-cache-item" style="display: flex; align-items: center; padding: 10px 8px; border-bottom: 1px solid var(--wechat-border); cursor: pointer;">
+              <input type="checkbox" class="wechat-cache-checkbox" data-type="summary" data-index="${item.index}" checked style="margin-right: 10px; width: 18px; height: 18px;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.linkedName}</div>
+                <div style="font-size: 12px; color: var(--wechat-text-secondary);">${item.cupCount} 杯总结记录</div>
+              </div>
+            </label>
+          `).join('')}
+        ` : ''}
+        ${hasVoices ? `
+          <div style="font-size: 12px; color: var(--wechat-text-secondary); padding: 8px; background: var(--wechat-bg-secondary); border-radius: 4px; margin-bottom: 8px; ${hasSummaries ? 'margin-top: 12px;' : ''}">
+            🎙️ 语音通话记录（孤立数据）
+          </div>
+          ${orphanedVoices.map(item => `
+            <label class="wechat-cache-item" style="display: flex; align-items: center; padding: 10px 8px; border-bottom: 1px solid var(--wechat-border); cursor: pointer;">
+              <input type="checkbox" class="wechat-cache-checkbox" data-type="voice" data-contact-index="${item.contactIndex}" checked style="margin-right: 10px; width: 18px; height: 18px;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 14px; font-weight: 500;">联系人 #${item.contactIndex}</div>
+                <div style="font-size: 12px; color: var(--wechat-text-secondary);">${item.count} 条语音，共 ${Math.round(item.totalDuration)} 秒</div>
+              </div>
+            </label>
+          `).join('')}
+        ` : ''}
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: space-between; align-items: center;">
+        <label style="display: flex; align-items: center; font-size: 13px; color: var(--wechat-text-secondary); cursor: pointer;">
+          <input type="checkbox" id="wechat-cache-select-all" checked style="margin-right: 6px;">
+          全选
+        </label>
+        <div style="display: flex; gap: 10px;">
+          <button class="wechat-btn wechat-btn-secondary" id="wechat-cache-cancel">取消</button>
+          <button class="wechat-btn wechat-btn-danger" id="wechat-cache-confirm">清除选中</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const phoneContainer = document.querySelector('.wechat-phone') || document.body;
+  phoneContainer.appendChild(modal);
+
+  // 关闭按钮
+  modal.querySelector('#wechat-cache-modal-close').addEventListener('click', () => modal.remove());
+  modal.querySelector('#wechat-cache-cancel').addEventListener('click', () => modal.remove());
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+
+  // 全选/取消全选
+  const selectAllCheckbox = modal.querySelector('#wechat-cache-select-all');
+  const itemCheckboxes = modal.querySelectorAll('.wechat-cache-checkbox');
+
+  selectAllCheckbox.addEventListener('change', () => {
+    itemCheckboxes.forEach(cb => cb.checked = selectAllCheckbox.checked);
+  });
+
+  itemCheckboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      const allChecked = Array.from(itemCheckboxes).every(c => c.checked);
+      const noneChecked = Array.from(itemCheckboxes).every(c => !c.checked);
+      selectAllCheckbox.checked = allChecked;
+      selectAllCheckbox.indeterminate = !allChecked && !noneChecked;
+    });
+  });
+
+  // 确认清除
+  modal.querySelector('#wechat-cache-confirm').addEventListener('click', async () => {
+    const selectedSummaryIndexes = new Set();
+    const selectedVoiceIndexes = [];
+
+    itemCheckboxes.forEach(cb => {
+      if (cb.checked) {
+        if (cb.dataset.type === 'summary') {
+          selectedSummaryIndexes.add(parseInt(cb.dataset.index));
+        } else if (cb.dataset.type === 'voice') {
+          selectedVoiceIndexes.push(parseInt(cb.dataset.contactIndex));
+        }
+      }
+    });
+
+    if (selectedSummaryIndexes.size === 0 && selectedVoiceIndexes.length === 0) {
+      showToast('请至少选择一项');
+      return;
+    }
+
+    let clearedCount = 0;
+
+    // 清除总结缓存
+    if (selectedSummaryIndexes.size > 0) {
+      const settings = getSettings();
+      settings.selectedLorebooks = settings.selectedLorebooks.filter((_, idx) => !selectedSummaryIndexes.has(idx));
+      requestSave();
+      clearedCount += selectedSummaryIndexes.size;
+    }
+
+    // 清除语音缓存
+    for (const contactIdx of selectedVoiceIndexes) {
+      try {
+        await deleteVoiceRecordingsByContact(contactIdx);
+        clearedCount++;
+      } catch (err) {
+        console.error('[可乐] 删除语音记录失败:', err);
+      }
+    }
+
+    modal.remove();
+    showToast(`已清除 ${clearedCount} 项缓存数据`);
+    console.log('[可乐] 已清除缓存，总结:', selectedSummaryIndexes.size, '语音:', selectedVoiceIndexes.length);
+  });
+}
+
 function setupPhoneMinimize() {
   const phone = document.getElementById('wechat-phone');
   const minimizeBtn = document.getElementById('wechat-minimize-btn');
@@ -761,6 +966,12 @@ function bindEvents() {
   document.getElementById('wechat-menu-floating-ball')?.addEventListener('click', () => {
     document.getElementById('wechat-dropdown-menu')?.classList.add('hidden');
     toggleFloatingBallEnabled();
+  });
+
+  // 下拉菜单 - 清除缓存
+  document.getElementById('wechat-menu-clear-cache')?.addEventListener('click', () => {
+    document.getElementById('wechat-dropdown-menu')?.classList.add('hidden');
+    clearOrphanedCache();
   });
 
   // ===== 群聊创建弹窗事件 =====
