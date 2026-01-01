@@ -2883,13 +2883,18 @@ function bindEvents() {
 }
 
 function init() {
+  console.log('[可乐] init() 开始');
   loadSettings();
+  console.log('[可乐] loadSettings 调用完成，开始 getSettings');
   const settings = getSettings();
+  console.log('[可乐] getSettings 完成，开始 seedDefaultUserPersonaFromST');
   if (seedDefaultUserPersonaFromST(settings)) {
     requestSave();
   }
+  console.log('[可乐] seedDefaultUserPersonaFromST 完成，开始 generatePhoneHTML');
 
   const phoneHTML = generatePhoneHTML();
+  console.log('[可乐] generatePhoneHTML 完成');
   document.body.insertAdjacentHTML('beforeend', phoneHTML);
 
   setupPhoneAutoCentering();

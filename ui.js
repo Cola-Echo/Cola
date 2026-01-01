@@ -180,7 +180,9 @@ export function generateChatList() {
 
 // 生成单聊列表项
 function generateContactChatItem(contact) {
+  if (!contact) return '';
   const lastMsg = contact.lastMsg;
+  if (!lastMsg) return '';
   let preview = '';
   if (lastMsg.type === 'voice' || lastMsg.isVoice) {
     preview = '[语音]';
