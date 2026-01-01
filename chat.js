@@ -753,6 +753,11 @@ export function openChat(contactIndex) {
 
   // 加载联系人的聊天背景
   loadContactBackground(contactIndex);
+
+  // 隐藏群聊专属菜单项，显示单聊专属菜单项
+  document.getElementById('wechat-menu-invite-member')?.classList.add('hidden');
+  document.getElementById('wechat-menu-block')?.classList.remove('hidden');
+  document.getElementById('wechat-menu-moments')?.classList.remove('hidden');
 }
 
 // 通过联系人ID打开聊天
@@ -2487,6 +2492,13 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
 
     // 尝试触发语音/视频通话（随机触发+保底机制）
     tryTriggerCallAfterChat(contactIndex);
+
+    // 检查其他联系人是否要主动发消息
+    import('./proactive-message.js').then(m => {
+      m.checkOtherContactsProactive(contact.id);
+    }).catch(err => {
+      console.error('[可乐] 主动消息检查失败:', err);
+    });
 
   } catch (err) {
     hideTypingIndicator();

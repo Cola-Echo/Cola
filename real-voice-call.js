@@ -379,7 +379,13 @@ function cleanAIReply(text) {
 
   // 移除特殊标记
   reply = reply.replace(/\[.*?\]/g, '').trim();
-  reply = reply.replace(/<\s*meme\s*>[\s\S]*?<\s*\/\s*meme\s*>/gi, '').trim();
+
+  // 移除 meme 表情包标签（多种可能的格式）
+  reply = reply.replace(/<\s*meme\s*>[^<]*<\s*\/\s*meme\s*>/gi, '').trim();
+  reply = reply.replace(/<meme>[^<]*<\/meme>/gi, '').trim();
+
+  // 移除可能残留的单独标签
+  reply = reply.replace(/<\/?meme>/gi, '').trim();
 
   // 移除括号描述（中文和英文括号）
   reply = reply.replace(/（[^）]+）/g, '').trim();
@@ -828,20 +834,9 @@ export async function hangupCall() {
       }
     }
 
-    // 通话记录消息
-    const callRecord = {
-      role: callState.initiator === 'user' ? 'user' : 'assistant',
-      content: callContent,
-      time: timeStr,
-      timestamp: Date.now(),
-      isCallRecord: true,
-      isRealVoice: true
-    };
-
-    contact.chatHistory.push(callRecord);
-
-    // 保存通话历史
+    // 保存通话历史和对话内容
     if (callState.messages && callState.messages.length > 0) {
+      // 有对话内容时，直接将对话内容保存到 chatHistory（不显示通话记录标记）
       contact.realVoiceCallHistory = Array.isArray(contact.realVoiceCallHistory) ? contact.realVoiceCallHistory : [];
       contact.realVoiceCallHistory.push({
         type: 'real-voice',
@@ -851,14 +846,41 @@ export async function hangupCall() {
         timestamp: Date.now(),
         messages: callState.messages.map(m => ({ role: m.role, content: m.content }))
       });
+
+      // 将通话对话内容保存到 chatHistory，让 AI 后续对话能识别
+      callState.messages.forEach(msg => {
+        contact.chatHistory.push({
+          role: msg.role,
+          content: msg.content,
+          time: timeStr,
+          timestamp: Date.now(),
+          isRealVoiceContent: true  // 标记为实时通话内容
+        });
+      });
+
+      // 刷新聊天界面显示对话内容
+      if (currentChatIndex === callState.contactIndex) {
+        openChat(currentChatIndex);
+      }
+    } else {
+      // 没有对话内容时（取消/拒绝），显示通话记录标记
+      const callRecord = {
+        role: callState.initiator === 'user' ? 'user' : 'assistant',
+        content: callContent,
+        time: timeStr,
+        timestamp: Date.now(),
+        isCallRecord: true,
+        isRealVoice: true
+      };
+      contact.chatHistory.push(callRecord);
+
+      // 在聊天界面显示通话记录
+      if (currentChatIndex === callState.contactIndex) {
+        appendCallRecordMessage(callState.initiator === 'user' ? 'user' : 'assistant', durationStr, contact);
+      }
     }
 
     contact.lastMessage = lastMessage;
-
-    // 在聊天界面显示通话记录
-    if (currentChatIndex === callState.contactIndex) {
-      appendCallRecordMessage(callState.initiator === 'user' ? 'user' : 'assistant', durationStr, contact);
-    }
 
     requestSave();
     refreshChatList();

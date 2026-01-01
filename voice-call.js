@@ -729,7 +729,9 @@ async function triggerAIGreeting() {
 
       let reply = part.trim();
       // 通话中禁用表情包/图片/音乐等富媒体（兜底过滤）
-      reply = reply.replace(/<\s*meme\s*>[\s\S]*?<\s*\/\s*meme\s*>/gi, '').trim();
+      reply = reply.replace(/<\s*meme\s*>[^<]*<\s*\/\s*meme\s*>/gi, '').trim();
+      reply = reply.replace(/<meme>[^<]*<\/meme>/gi, '').trim();
+      reply = reply.replace(/<\/?meme>/gi, '').trim();
       if (!reply) continue;
       if (/^\[(?:表情|照片|分享音乐|音乐)[：:]/.test(reply)) continue;
       // 移除语音标记
@@ -854,7 +856,9 @@ ${lastMessages}
     for (const part of parts) {
       let reply = part.trim();
       // 通话中禁用表情包/图片/音乐等富媒体（兜底过滤）
-      reply = reply.replace(/<\s*meme\s*>[\s\S]*?<\s*\/\s*meme\s*>/gi, '').trim();
+      reply = reply.replace(/<\s*meme\s*>[^<]*<\s*\/\s*meme\s*>/gi, '').trim();
+      reply = reply.replace(/<meme>[^<]*<\/meme>/gi, '').trim();
+      reply = reply.replace(/<\/?meme>/gi, '').trim();
       if (!reply) continue;
       if (/^\[(?:表情|照片|分享音乐|音乐)[：:]/.test(reply)) continue;
       // 移除可能的特殊标记

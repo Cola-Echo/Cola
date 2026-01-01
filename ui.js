@@ -100,11 +100,12 @@ export function getUserPersonaFromST() {
   return null;
 }
 
-// 生成聊天列表 HTML（包含单聊和群聊）
+// 生成聊天列表 HTML（包含单聊、群聊和多人群聊）
 export function generateChatList() {
   const settings = getSettings();
   const contacts = settings.contacts || [];
   const groupChats = settings.groupChats || [];
+  const multiPersonChats = settings.multiPersonChats || [];
 
   // 处理单聊
   const contactsWithChat = contacts.map((contact, index) => {
@@ -136,8 +137,22 @@ export function generateChatList() {
     };
   });
 
+  // 处理多人群聊
+  const multiPersonWithChat = multiPersonChats.map((chat, index) => {
+    const chatHistory = chat.chatHistory || [];
+    const lastMsg = getLastRenderableMessage(chatHistory);
+    const lastMsgTime = lastMsg ? (lastMsg.timestamp || chat.lastMessageTime || 0) : (chat.lastMessageTime || 0);
+    return {
+      type: 'multiPerson',
+      ...chat,
+      originalIndex: index,
+      lastMsg,
+      lastMsgTime: lastMsgTime || Date.now()
+    };
+  });
+
   // 合并并排序
-  const allChats = [...contactsWithChat, ...groupsWithChat].sort((a, b) => b.lastMsgTime - a.lastMsgTime);
+  const allChats = [...contactsWithChat, ...groupsWithChat, ...multiPersonWithChat].sort((a, b) => b.lastMsgTime - a.lastMsgTime);
 
   if (allChats.length === 0) {
     return `
@@ -155,6 +170,8 @@ export function generateChatList() {
   return allChats.map(chat => {
     if (chat.type === 'group') {
       return generateGroupChatItem(chat, settings);
+    } else if (chat.type === 'multiPerson') {
+      return generateMultiPersonChatItem(chat);
     } else {
       return generateContactChatItem(chat);
     }
@@ -319,13 +336,61 @@ function generateGroupChatItem(group, settings) {
   `;
 }
 
+// 生成多人群聊列表项
+function generateMultiPersonChatItem(chat) {
+  const lastMsg = chat.lastMsg;
+  let preview = '';
+
+  if (lastMsg) {
+    const sender = lastMsg.characterName ? `[${lastMsg.characterName}]: ` : '';
+    if (lastMsg.isVoice) {
+      preview = `${sender}[语音]`;
+    } else if (lastMsg.isImage) {
+      preview = `${sender}[图片]`;
+    } else if (lastMsg.isSticker) {
+      preview = `${sender}[表情]`;
+    } else {
+      let content = lastMsg.content || '';
+      if (content.length > 15) content = content.substring(0, 15) + '...';
+      preview = `${sender}${content}`;
+    }
+  } else {
+    preview = '群聊已创建';
+  }
+
+  const msgTime = chat.lastMsgTime ? formatChatTime(chat.lastMsgTime) : '';
+  const memberCount = chat.members?.length || 0;
+
+  // 使用保存的头像，如果没有则显示白底黑字"群"
+  let avatarHtml;
+  if (chat.avatar) {
+    avatarHtml = `<img src="${chat.avatar}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">`;
+  } else {
+    avatarHtml = `<div style="width: 100%; height: 100%; background: #fff; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: #000;">群</div>`;
+  }
+
+  return `
+    <div class="wechat-chat-item wechat-chat-item-mp" data-mp-id="${chat.id}" data-mp-index="${chat.originalIndex}">
+      <div class="wechat-chat-item-avatar" style="display: flex; align-items: center; justify-content: center;">${avatarHtml}</div>
+      <div class="wechat-chat-item-info">
+        <div class="wechat-chat-item-name">${escapeHtml(chat.name || '群聊')}(${memberCount})</div>
+        <div class="wechat-chat-item-preview">${escapeHtml(preview)}</div>
+      </div>
+      <div class="wechat-chat-item-meta">
+        <span class="wechat-chat-item-time">${msgTime}</span>
+      </div>
+    </div>
+  `;
+}
+
 // 生成联系人列表 HTML
 export function generateContactsList() {
   const settings = getSettings();
   const contacts = settings.contacts || [];
   const groupChats = settings.groupChats || [];
+  const multiPersonChats = settings.multiPersonChats || [];
 
-  if (contacts.length === 0 && groupChats.length === 0) {
+  if (contacts.length === 0 && groupChats.length === 0 && multiPersonChats.length === 0) {
     return `
       <div class="wechat-empty">
         <div class="wechat-empty-icon">
@@ -396,6 +461,38 @@ export function generateContactsList() {
           <div class="wechat-card-name">群聊(${groupMemberCount})</div>
         </div>
         <div class="wechat-card-delete wechat-group-delete" data-group-index="${index}">
+          <span>删除</span>
+        </div>
+      </div>
+    </div>
+  `;
+  });
+
+  // 生成多人群聊卡片
+  multiPersonChats.forEach((mpChat, index) => {
+    const memberCount = mpChat.members?.length || 0;
+    const chatName = mpChat.name || '群聊';
+    const hasCustomApi = mpChat.useCustomApi || false;
+
+    // 使用保存的头像，如果没有则显示白底黑字"群"
+    let avatarHtml;
+    if (mpChat.avatar) {
+      avatarHtml = `<img src="${mpChat.avatar}" alt="" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">`;
+    } else {
+      avatarHtml = `<div class="wechat-card-fallback" style="display:flex; background: #fff; color: #000; font-weight: bold;">群</div>`;
+    }
+
+    html += `
+    <div class="wechat-contact-card wechat-mp-card" data-mp-index="${index}">
+      <div class="wechat-card-swipe-wrapper">
+        <div class="wechat-card-content wechat-mp-card-content" data-mp-index="${index}" title="点击开始聊天">
+          <div class="wechat-card-avatar wechat-mp-avatar" data-mp-index="${index}" title="点击配置API">
+            ${avatarHtml}
+            ${hasCustomApi ? '<div class="wechat-mp-api-badge">⚙️</div>' : ''}
+          </div>
+          <div class="wechat-card-name">${escapeHtml(chatName)}(${memberCount})</div>
+        </div>
+        <div class="wechat-card-delete wechat-mp-delete" data-mp-index="${index}">
           <span>删除</span>
         </div>
       </div>

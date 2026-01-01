@@ -143,6 +143,148 @@ function deleteGroupLorebooks(group, settings) {
   }
 }
 
+// 删除多人群聊
+export function deleteMultiPersonChat(mpIndex) {
+  const settings = getSettings();
+  const multiPersonChats = settings.multiPersonChats || [];
+  const mpChat = multiPersonChats[mpIndex];
+  if (!mpChat) return;
+
+  if (confirm(`确定要删除「${mpChat.name || '多人群聊'}」吗？`)) {
+    multiPersonChats.splice(mpIndex, 1);
+    requestSave();
+    refreshContactsList();
+    // 同时刷新聊天列表
+    import('./ui.js').then(m => m.refreshChatList());
+    showToast('多人群聊已删除');
+  }
+}
+
+// 当前正在编辑的多人群聊索引
+let currentEditingMpIndex = -1;
+let pendingMpAvatar = null;  // 待保存的头像
+
+// 打开多人群聊配置弹窗
+export function openMpApiSettings(mpIndex) {
+  const settings = getSettings();
+  const mpChat = settings.multiPersonChats?.[mpIndex];
+  if (!mpChat) return;
+
+  currentEditingMpIndex = mpIndex;
+  pendingMpAvatar = null;
+
+  // 填充头像预览
+  const avatarPreview = document.getElementById('wechat-mp-avatar-preview');
+  if (avatarPreview) {
+    if (mpChat.avatar) {
+      avatarPreview.innerHTML = `<img src="${mpChat.avatar}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    } else {
+      avatarPreview.innerHTML = '群';
+    }
+  }
+
+  // 填充群名
+  const nameInput = document.getElementById('wechat-mp-name-input');
+  if (nameInput) {
+    nameInput.value = mpChat.name || '群聊';
+  }
+
+  // 填充API配置
+  const useCustomApi = mpChat.useCustomApi || false;
+  const customSwitch = document.getElementById('wechat-mp-use-custom-api');
+  if (customSwitch) {
+    customSwitch.classList.toggle('on', useCustomApi);
+  }
+
+  const apiConfigSection = document.getElementById('wechat-mp-api-config');
+  const globalTip = document.getElementById('wechat-mp-global-tip');
+  if (apiConfigSection) apiConfigSection.classList.toggle('hidden', !useCustomApi);
+  if (globalTip) globalTip.classList.toggle('hidden', useCustomApi);
+
+  document.getElementById('wechat-mp-api-url').value = mpChat.customApiUrl || '';
+  document.getElementById('wechat-mp-api-key').value = mpChat.customApiKey || '';
+
+  // 模型选择
+  const modelSelect = document.getElementById('wechat-mp-model-select');
+  if (modelSelect) {
+    modelSelect.innerHTML = '<option value="">--请选择模型--</option>';
+    if (mpChat.customModel) {
+      modelSelect.innerHTML += `<option value="${mpChat.customModel}" selected>${mpChat.customModel}</option>`;
+    }
+  }
+
+  // 显示弹窗
+  document.getElementById('wechat-mp-api-modal')?.classList.remove('hidden');
+}
+
+// 保存多人群聊配置
+export function saveMpApiSettings() {
+  if (currentEditingMpIndex < 0) return;
+
+  const settings = getSettings();
+  const mpChat = settings.multiPersonChats?.[currentEditingMpIndex];
+  if (!mpChat) return;
+
+  // 保存群名
+  const nameInput = document.getElementById('wechat-mp-name-input');
+  if (nameInput) {
+    mpChat.name = nameInput.value.trim() || '群聊';
+  }
+
+  // 保存头像
+  if (pendingMpAvatar) {
+    mpChat.avatar = pendingMpAvatar;
+  }
+
+  // 保存API配置
+  const useCustomApi = document.getElementById('wechat-mp-use-custom-api')?.classList.contains('on') || false;
+  mpChat.useCustomApi = useCustomApi;
+
+  if (useCustomApi) {
+    mpChat.customApiUrl = document.getElementById('wechat-mp-api-url')?.value?.trim() || '';
+    mpChat.customApiKey = document.getElementById('wechat-mp-api-key')?.value?.trim() || '';
+
+    // 获取模型值
+    const inputWrapper = document.getElementById('wechat-mp-model-input-wrapper');
+    const isManualMode = inputWrapper?.style.display === 'flex';
+    mpChat.customModel = isManualMode
+      ? (document.getElementById('wechat-mp-model-input')?.value?.trim() || '')
+      : (document.getElementById('wechat-mp-model-select')?.value?.trim() || '');
+  }
+
+  requestSave();
+  showToast('设置已保存');
+  refreshContactsList();
+  // 同时刷新聊天列表
+  import('./ui.js').then(m => m.refreshChatList());
+
+  // 关闭弹窗
+  document.getElementById('wechat-mp-api-modal')?.classList.add('hidden');
+  currentEditingMpIndex = -1;
+  pendingMpAvatar = null;
+}
+
+// 处理多人群聊头像选择
+export function handleMpAvatarChange(file) {
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    pendingMpAvatar = e.target.result;
+    const avatarPreview = document.getElementById('wechat-mp-avatar-preview');
+    if (avatarPreview) {
+      avatarPreview.innerHTML = `<img src="${pendingMpAvatar}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+// 关闭多人群聊API配置弹窗
+export function closeMpApiSettings() {
+  document.getElementById('wechat-mp-api-modal')?.classList.add('hidden');
+  currentEditingMpIndex = -1;
+}
+
 // 更换角色头像（在设置弹窗中使用）
 export function changeContactAvatar(contactIndex) {
   pendingAvatarContactIndex = contactIndex;
@@ -348,6 +490,37 @@ export function bindContactsEvents() {
       e.stopPropagation();
       const groupIndex = parseInt(this.dataset.groupIndex);
       deleteGroupChat(groupIndex);
+    });
+  });
+
+  // 多人群聊卡片点击进入聊天
+  import('./multi-person-chat.js').then(mpModule => {
+    document.querySelectorAll('.wechat-mp-card .wechat-mp-card-content').forEach(card => {
+      card.addEventListener('click', function(e) {
+        // 如果点击的是头像，不进入聊天（由头像自己的事件处理）
+        if (e.target.closest('.wechat-mp-avatar')) return;
+        const cardEl = this.closest('.wechat-mp-card');
+        const mpIndex = parseInt(cardEl.dataset.mpIndex);
+        mpModule.openMultiPersonChat(mpIndex);
+      });
+    });
+  });
+
+  // 多人群聊头像点击配置API
+  document.querySelectorAll('.wechat-mp-avatar').forEach(avatar => {
+    avatar.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const mpIndex = parseInt(this.dataset.mpIndex);
+      openMpApiSettings(mpIndex);
+    });
+  });
+
+  // 多人群聊删除按钮
+  document.querySelectorAll('.wechat-mp-delete').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const mpIndex = parseInt(this.dataset.mpIndex);
+      deleteMultiPersonChat(mpIndex);
     });
   });
 

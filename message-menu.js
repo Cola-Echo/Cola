@@ -118,12 +118,24 @@ export function showMessageMenu(msgElement, msgIndex, event) {
     msg = contact?.chatHistory?.[msgIndex];
   }
 
-  // 优先从历史记录判断，其次从元素属性判断（处理分割显示的消息）
-  let isUserMessage = msg?.role === 'user';
-  if (msg === undefined) {
-    // 如果找不到消息记录，尝试从元素属性获取
-    const roleAttr = msgElement?.dataset?.msgRole || msgElement?.closest?.('[data-msg-role]')?.dataset?.msgRole;
-    isUserMessage = roleAttr === 'user';
+  // 从元素或其父元素获取 role 属性
+  let roleAttr = msgElement?.dataset?.msgRole;
+  if (!roleAttr) {
+    // 尝试从父元素获取（气泡元素在 .wechat-message 内部）
+    const parentMsg = msgElement?.closest?.('.wechat-message') || msgElement?.parentElement?.closest?.('.wechat-message');
+    roleAttr = parentMsg?.dataset?.msgRole;
+  }
+  let isUserMessage = roleAttr === 'user';
+
+  // 如果元素属性不存在，回退到历史记录判断
+  if (!roleAttr && msg) {
+    isUserMessage = msg.role === 'user';
+  }
+
+  // 最后检查：通过元素类名判断（self 类表示用户消息）
+  if (!roleAttr && !msg) {
+    const parentMsg = msgElement?.closest?.('.wechat-message');
+    isUserMessage = parentMsg?.classList?.contains('self') || false;
   }
 
   // 检测是否是语音消息
@@ -470,6 +482,8 @@ async function regenerateMessage(msgIndex, contact) {
 
   // 触发AI重新回复
   try {
+    // 等待 DOM 更新后再显示 typing 指示器
+    await new Promise(resolve => setTimeout(resolve, 50));
     showTypingIndicator(contact);
 
     const { callAI } = await import('./ai.js');

@@ -154,6 +154,13 @@ export function generatePhoneHTML() {
               <div class="wechat-add-option-text">导入角色卡 (JSON)</div>
               <span class="wechat-add-option-arrow">›</span>
             </div>
+            <div class="wechat-add-option" id="wechat-import-multi-card">
+              <div class="wechat-add-option-icon">
+                <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+              </div>
+              <div class="wechat-add-option-text">导入多人卡</div>
+              <span class="wechat-add-option-arrow">›</span>
+            </div>
           </div>
         </div>
       </div>
@@ -170,6 +177,14 @@ export function generatePhoneHTML() {
           <div class="wechat-dropdown-item" id="wechat-menu-recalled">
             <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
             <span>撤回消息</span>
+          </div>
+          <div class="wechat-dropdown-item hidden" id="wechat-menu-invite-member">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              <path d="M19 8v6M16 11h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span>邀请成员</span>
           </div>
           <div class="wechat-dropdown-item" id="wechat-menu-chat-bg">
             <svg viewBox="0 0 24 24" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
@@ -774,6 +789,14 @@ function generateServicePageHTML(settings) {
           <div class="wechat-service-grid">
             <div class="wechat-service-item" data-service="meme-stickers"><div class="wechat-service-icon purple" style="background: linear-gradient(135deg, #9c27b0, #e91e63);"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="9" r="1.5" fill="currentColor"/><path d="M7 14c1.5 3 4 4 5 4s3.5-1 5-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>Meme表情</span></div>
             <div class="wechat-service-item" data-service="voice-api"><div class="wechat-service-icon" style="background: linear-gradient(135deg, #00bcd4, #009688);"><svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 00-4 4v7a4 4 0 008 0V5a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div><span>语音API</span></div>
+            <div class="wechat-service-item" data-service="multi-char-table"><div class="wechat-service-icon" style="background: linear-gradient(135deg, #3f51b5, #7986cb);"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><span>多人卡表格</span></div>
+          </div>
+          <!-- 角色表格容器（可折叠） -->
+          <div id="wechat-char-tables-section" class="hidden">
+            <div class="wechat-service-section-title" style="margin-top: 16px;">已解析的角色表格</div>
+            <div id="wechat-char-tables-container">
+              <!-- 角色表格由 JS 动态填充 -->
+            </div>
           </div>
         </div>
         <div class="wechat-service-section">
@@ -1036,6 +1059,71 @@ function generateModalsHTML(settings) {
         <div class="wechat-modal-actions" style="margin-top: 16px; display: flex; gap: 10px;">
           <button class="wechat-btn" id="wechat-voice-save-skip" style="flex: 1;">不保存</button>
           <button class="wechat-btn wechat-btn-primary" id="wechat-voice-save-confirm" style="flex: 1;">保存选中</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 多人群聊配置弹窗 -->
+    <div id="wechat-mp-api-modal" class="wechat-modal hidden">
+      <div class="wechat-modal-content" style="position: relative; max-width: 380px; max-height: 85vh; overflow-y: auto;">
+        <button class="wechat-modal-close-x" id="wechat-mp-api-close">×</button>
+        <div class="wechat-modal-title">群聊设置</div>
+
+        <!-- 头像和群名编辑区 -->
+        <div class="wechat-settings-group" style="padding: 12px; background: var(--wechat-bg-secondary); border-radius: 8px; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <div id="wechat-mp-avatar-preview" style="width: 60px; height: 60px; border-radius: 8px; overflow: hidden; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: #000; cursor: pointer; border: 1px solid #ddd;" title="点击更换头像">群</div>
+            <div style="flex: 1;">
+              <span class="wechat-settings-label" style="font-size: 12px; margin-bottom: 4px; display: block;">群聊名称</span>
+              <input type="text" class="wechat-settings-input" id="wechat-mp-name-input" placeholder="群聊" style="width: 100%; box-sizing: border-box;">
+            </div>
+          </div>
+          <button class="wechat-btn wechat-btn-small" id="wechat-mp-change-avatar" style="width: 100%;">更换头像</button>
+          <input type="file" id="wechat-mp-avatar-file" accept="image/*" style="display: none;">
+        </div>
+
+        <!-- API配置区 -->
+        <div class="wechat-settings-group" style="padding: 12px; background: var(--wechat-bg-secondary); border-radius: 8px; margin-bottom: 12px;">
+          <div class="wechat-settings-item" style="margin-bottom: 12px;">
+            <span class="wechat-settings-label">使用独立API</span>
+            <div class="wechat-switch" id="wechat-mp-use-custom-api"></div>
+          </div>
+
+          <div id="wechat-mp-global-tip" style="font-size: 12px; color: var(--wechat-text-secondary);">
+            将使用全局 AI 配置
+          </div>
+
+          <div id="wechat-mp-api-config" class="hidden" style="display: flex; flex-direction: column; gap: 10px;">
+            <div>
+              <span class="wechat-settings-label" style="font-size: 12px; margin-bottom: 4px; display: block;">API 地址</span>
+              <input type="text" class="wechat-settings-input" id="wechat-mp-api-url" placeholder="https://api.example.com/v1" style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div>
+              <span class="wechat-settings-label" style="font-size: 12px; margin-bottom: 4px; display: block;">API 密钥</span>
+              <input type="password" class="wechat-settings-input" id="wechat-mp-api-key" placeholder="sk-xxx" style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div>
+              <span class="wechat-settings-label" style="font-size: 12px; margin-bottom: 4px; display: block;">模型</span>
+              <div style="display: flex; gap: 8px;" id="wechat-mp-model-select-wrapper">
+                <select class="wechat-settings-input" id="wechat-mp-model-select" style="flex: 1; box-sizing: border-box;">
+                  <option value="">---请选择模型---</option>
+                </select>
+                <button class="wechat-btn wechat-btn-small" id="wechat-mp-model-manual" style="white-space: nowrap;">手动</button>
+                <button class="wechat-btn wechat-btn-small wechat-btn-primary" id="wechat-mp-fetch-model" style="white-space: nowrap;">获取</button>
+              </div>
+              <div style="display: none; gap: 8px;" id="wechat-mp-model-input-wrapper">
+                <input type="text" class="wechat-settings-input" id="wechat-mp-model-input" placeholder="手动输入模型名称" style="flex: 1; box-sizing: border-box;">
+                <button class="wechat-btn wechat-btn-small" id="wechat-mp-model-back" style="white-space: nowrap;">返回</button>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 4px;">
+              <button class="wechat-btn wechat-btn-small" id="wechat-mp-test-api" style="flex: 1;">测试连接</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="wechat-modal-actions">
+          <button class="wechat-btn wechat-btn-primary" id="wechat-mp-api-save">保存</button>
         </div>
       </div>
     </div>
@@ -1508,6 +1596,161 @@ function generateGiftPageHTML() {
         <div class="wechat-modal-actions">
           <button class="wechat-btn wechat-gift-arrival-btn-no" id="wechat-gift-arrival-no">稍后</button>
           <button class="wechat-btn wechat-gift-arrival-btn-yes" id="wechat-gift-arrival-yes">开始</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 多人卡导入弹窗 -->
+    <div id="wechat-multi-import-modal" class="wechat-modal hidden">
+      <div class="wechat-modal-content" style="max-width: 420px; position: relative;">
+        <button class="wechat-modal-close-x" id="wechat-multi-import-close">×</button>
+        <div class="wechat-modal-header">
+          <span>导入多人卡</span>
+        </div>
+
+        <div class="wechat-modal-body">
+          <!-- AI 配置区 -->
+          <div class="wechat-settings-section">
+            <div class="wechat-settings-title">解析 AI 配置</div>
+
+            <!-- 使用独立API开关 -->
+            <div class="wechat-settings-row">
+              <span>使用独立API</span>
+              <div class="wechat-switch" id="wechat-multi-import-custom-api"></div>
+            </div>
+
+            <!-- API配置（默认隐藏） -->
+            <div id="wechat-multi-import-api-config" class="hidden" style="margin-top: 12px;">
+              <div class="wechat-settings-item">
+                <label>API 地址</label>
+                <input type="text" class="wechat-settings-input"
+                       id="wechat-multi-import-api-url"
+                       placeholder="https://api.example.com/v1">
+              </div>
+
+              <div class="wechat-settings-item">
+                <label>API 密钥</label>
+                <input type="password" class="wechat-settings-input"
+                       id="wechat-multi-import-api-key"
+                       placeholder="sk-...">
+              </div>
+
+              <div class="wechat-settings-item">
+                <label>模型</label>
+                <div style="display: flex; gap: 8px;">
+                  <div id="wechat-multi-import-model-select-wrapper" style="flex: 1; display: flex;">
+                    <select class="wechat-settings-input wechat-settings-select"
+                            id="wechat-multi-import-model-select" style="flex: 1;">
+                      <option value="">--请选择模型--</option>
+                    </select>
+                  </div>
+                  <div id="wechat-multi-import-model-input-wrapper" style="flex: 1; display: none;">
+                    <input type="text" class="wechat-settings-input"
+                           id="wechat-multi-import-model-input"
+                           placeholder="手动输入模型名">
+                  </div>
+                  <button class="wechat-btn wechat-btn-small" id="wechat-multi-import-model-toggle">手动</button>
+                  <button class="wechat-btn wechat-btn-small wechat-btn-primary" id="wechat-multi-import-fetch-model">获取</button>
+                </div>
+              </div>
+
+              <button class="wechat-btn" id="wechat-multi-import-test" style="width: 100%; margin-top: 8px;">
+                测试连接
+              </button>
+            </div>
+
+            <!-- 使用全局配置提示 -->
+            <div id="wechat-multi-import-global-tip" style="margin-top: 8px; font-size: 12px; color: var(--wechat-text-secondary);">
+              将使用全局 AI 配置进行解析
+            </div>
+          </div>
+
+          <!-- 文件选择区 -->
+          <div class="wechat-settings-section" style="margin-top: 16px;">
+            <div class="wechat-settings-title">选择文件</div>
+            <div style="display: flex; gap: 10px;">
+              <button class="wechat-btn" id="wechat-multi-import-select-png" style="flex: 1;">
+                选择 PNG 文件
+              </button>
+              <button class="wechat-btn" id="wechat-multi-import-select-json" style="flex: 1;">
+                选择 JSON 文件
+              </button>
+            </div>
+            <div id="wechat-multi-import-file-info" style="margin-top: 8px; font-size: 13px; color: var(--wechat-text-secondary);">
+              未选择文件
+            </div>
+          </div>
+        </div>
+
+        <div class="wechat-modal-footer">
+          <button class="wechat-btn" id="wechat-multi-import-cancel">取消</button>
+          <button class="wechat-btn wechat-btn-primary" id="wechat-multi-import-start" disabled>开始解析</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 角色选择弹窗（选择导入哪些角色为联系人/群聊） -->
+    <div id="wechat-char-select-modal" class="wechat-modal hidden">
+      <div class="wechat-modal-content" style="max-width: 450px; max-height: 80vh; display: flex; flex-direction: column;">
+        <div class="wechat-modal-header">
+          <span>选择要导入的角色</span>
+          <span class="wechat-modal-close" id="wechat-char-select-close">&times;</span>
+        </div>
+
+        <div class="wechat-modal-body" style="flex: 1; overflow-y: auto; padding: 0;">
+          <!-- 角色列表区 -->
+          <div style="padding: 12px; border-bottom: 1px solid var(--wechat-border);">
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+              <input type="checkbox" id="wechat-char-select-all" checked style="margin-right: 8px;">
+              <label for="wechat-char-select-all" style="font-weight: bold;">创建独立联系人</label>
+              <span id="wechat-char-select-count" style="margin-left: auto; font-size: 12px; color: var(--wechat-text-secondary);">0/0</span>
+            </div>
+            <div id="wechat-char-select-list" style="max-height: 250px; overflow-y: auto;">
+              <!-- 角色列表动态填充 -->
+            </div>
+          </div>
+
+          <!-- 群聊选项区 -->
+          <div style="padding: 12px;">
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+              <input type="checkbox" id="wechat-char-select-group" checked style="margin-right: 8px;">
+              <label for="wechat-char-select-group" style="font-weight: bold;">同时创建群聊</label>
+            </div>
+            <div id="wechat-char-select-group-options">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <div id="wechat-char-select-group-avatar" style="width: 48px; height: 48px; background: #fff; border: 1px solid #ddd; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: #000;">群</div>
+                <input type="text" id="wechat-char-select-group-name" class="wechat-settings-input" placeholder="群聊名称（可选）" style="flex: 1;">
+              </div>
+              <div style="font-size: 12px; color: var(--wechat-text-secondary);">
+                将包含上方勾选的联系人（至少需要2人）
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wechat-modal-footer">
+          <button class="wechat-btn" id="wechat-char-select-cancel">取消</button>
+          <button class="wechat-btn wechat-btn-primary" id="wechat-char-select-confirm">确认导入</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- "其它信息"编辑弹窗 -->
+    <div id="wechat-char-other-edit-modal" class="wechat-modal hidden">
+      <div class="wechat-modal-content" style="max-width: 400px;">
+        <div class="wechat-modal-header">
+          <span id="wechat-char-other-edit-title">编辑其它信息</span>
+          <span class="wechat-modal-close" id="wechat-char-other-edit-close">&times;</span>
+        </div>
+        <div class="wechat-modal-body" style="padding: 16px;">
+          <textarea id="wechat-char-other-edit-textarea"
+                    class="wechat-settings-input"
+                    style="width: 100%; height: 200px; resize: vertical; font-size: 14px; line-height: 1.5;"
+                    placeholder="其它信息"></textarea>
+        </div>
+        <div class="wechat-modal-footer">
+          <button class="wechat-btn" id="wechat-char-other-edit-cancel">取消</button>
+          <button class="wechat-btn wechat-btn-primary" id="wechat-char-other-edit-save">保存</button>
         </div>
       </div>
     </div>

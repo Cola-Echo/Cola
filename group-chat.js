@@ -635,6 +635,11 @@ export function openGroupChat(groupIndex) {
 
   // 加载群聊背景
   loadGroupBackground(groupIndex);
+
+  // 显示群聊专属菜单项，隐藏单聊专属菜单项
+  document.getElementById('wechat-menu-invite-member')?.classList.remove('hidden');
+  document.getElementById('wechat-menu-block')?.classList.add('hidden');
+  document.getElementById('wechat-menu-moments')?.classList.add('hidden');
 }
 
 // 渲染群聊历史
@@ -2404,6 +2409,11 @@ export async function sendGroupMessage(messageText, isMultipleMessages = false, 
     refreshChatList();
     checkGroupSummaryReminder(groupChat);
 
+    // 检测群聊中的负面情绪，可能触发私聊
+    // 传递群聊上下文（最近40条消息）
+    const groupContext = getGroupChatHistoryForApi(groupChat.chatHistory, 40);
+    detectGroupEmotionAndTriggerPrivate(responses, members, groupContext);
+
   } catch (err) {
     hideGroupTypingIndicator();
     console.error('[可乐] 群聊 AI 调用失败:', err);
@@ -2930,5 +2940,196 @@ export async function sendGroupBatchMessages(messages) {
     requestSave();
     refreshChatList();
     appendGroupMessage('assistant', `⚠️ ${err.message}`, '系统', null);
+  }
+}
+
+/**
+ * 显示邀请成员弹窗
+ */
+export function showInviteMemberModal() {
+  const settings = getSettings();
+  const groupChat = settings.groupChats?.[currentGroupChatIndex];
+  if (!groupChat) {
+    showToast('请先打开一个群聊', '⚠️');
+    return;
+  }
+
+  const currentMemberIds = groupChat.memberIds || [];
+
+  // 检查是否已满
+  if (currentMemberIds.length >= GROUP_CHAT_MAX_AI_MEMBERS) {
+    showToast(`群聊已满（最多${GROUP_CHAT_MAX_AI_MEMBERS}人）`, '⚠️');
+    return;
+  }
+
+  // 获取可邀请的联系人（不在群里的、配置了独立API的）
+  const availableContacts = settings.contacts.filter(c =>
+    !currentMemberIds.includes(c.id) &&
+    c.useCustomApi &&
+    c.customApiUrl &&
+    c.customModel
+  );
+
+  if (availableContacts.length === 0) {
+    showToast('没有可邀请的联系人\n（需配置独立API）', '⚠️');
+    return;
+  }
+
+  // 获取手机容器
+  const phoneContainer = document.querySelector('.wechat-phone');
+  if (!phoneContainer) return;
+
+  // 构建弹窗HTML
+  const modal = document.createElement('div');
+  modal.className = 'wechat-modal';
+  modal.id = 'wechat-invite-member-modal';
+  modal.innerHTML = `
+    <div class="wechat-modal-content" style="max-height: 70vh; overflow-y: auto;">
+      <div class="wechat-modal-title">邀请成员</div>
+      <div class="wechat-modal-body">
+        <div style="margin-bottom: 12px; color: #888; font-size: 12px;">
+          当前 ${currentMemberIds.length}/${GROUP_CHAT_MAX_AI_MEMBERS} 人
+        </div>
+        <div id="wechat-invite-contact-list" style="max-height: 300px; overflow-y: auto;">
+          ${availableContacts.map(c => `
+            <div class="wechat-invite-contact-item" data-contact-id="${c.id}"
+                 style="display: flex; align-items: center; padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; transition: background 0.2s;">
+              <div style="width: 40px; height: 40px; border-radius: 4px; background: #07c160; color: white;
+                          display: flex; align-items: center; justify-content: center; margin-right: 10px; overflow: hidden;">
+                ${c.avatar ? `<img src="${c.avatar}" style="width: 100%; height: 100%; object-fit: cover;">` : escapeHtml(c.name.charAt(0))}
+              </div>
+              <span>${escapeHtml(c.name)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="wechat-modal-actions">
+        <button class="wechat-btn" id="wechat-invite-cancel">取消</button>
+      </div>
+    </div>
+  `;
+
+  phoneContainer.appendChild(modal);
+
+  // 添加hover效果
+  modal.querySelectorAll('.wechat-invite-contact-item').forEach(item => {
+    item.addEventListener('mouseenter', () => {
+      item.style.background = '#f5f5f5';
+    });
+    item.addEventListener('mouseleave', () => {
+      item.style.background = '';
+    });
+
+    // 点击联系人邀请
+    item.addEventListener('click', () => {
+      const contactId = item.dataset.contactId;
+      addMemberToGroup(currentGroupChatIndex, contactId);
+      modal.remove();
+    });
+  });
+
+  // 取消按钮
+  modal.querySelector('#wechat-invite-cancel')?.addEventListener('click', () => {
+    modal.remove();
+  });
+
+  // 点击遮罩关闭
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+/**
+ * 添加成员到群聊
+ */
+export function addMemberToGroup(groupIndex, contactId) {
+  const settings = getSettings();
+  const groupChat = settings.groupChats?.[groupIndex];
+  const contact = settings.contacts.find(c => c.id === contactId);
+
+  if (!groupChat || !contact) return;
+
+  // 检查是否已满
+  if (groupChat.memberIds.length >= GROUP_CHAT_MAX_AI_MEMBERS) {
+    showToast('群聊已满', '⚠️');
+    return;
+  }
+
+  // 检查是否已存在
+  if (groupChat.memberIds.includes(contactId)) {
+    showToast('该成员已在群聊中', 'info');
+    return;
+  }
+
+  // 添加成员
+  groupChat.memberIds.push(contactId);
+
+  // 添加系统消息
+  const now = new Date();
+  const timeStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+  groupChat.chatHistory.push({
+    role: 'system',
+    content: `${contact.name} 加入了群聊`,
+    isSystemNotice: true,
+    time: timeStr,
+    timestamp: Date.now()
+  });
+
+  // 更新群名（如果是默认名）
+  if (!groupChat.customName) {
+    const memberNames = groupChat.memberIds
+      .map(id => settings.contacts.find(c => c.id === id)?.name)
+      .filter(Boolean);
+    groupChat.name = memberNames.join('、');
+  }
+
+  requestSave();
+
+  // 刷新界面
+  openGroupChat(groupIndex);
+  refreshChatList();
+
+  showToast(`${contact.name} 已加入群聊`);
+
+  console.log(`[可乐] ${contact.name} 加入群聊:`, groupChat.name);
+}
+
+/**
+ * 检测群聊中的负面情绪，可能触发私聊
+ * @param {Array} responses - AI回复数组
+ * @param {Array} members - 群成员数组
+ * @param {Array} groupContext - 群聊上下文（最近40条消息）
+ */
+function detectGroupEmotionAndTriggerPrivate(responses, members, groupContext = []) {
+  if (!responses || responses.length === 0) return;
+
+  // 负面情绪关键词
+  const NEGATIVE_KEYWORDS = [
+    '生气', '讨厌', '烦', '不理你', '哼', '算了', '随便',
+    '滚', '走开', '别说了', '不想理', '烦死了', '气死',
+    '委屈', '难过', '伤心', '失望'
+  ];
+
+  for (const resp of responses) {
+    const content = resp.content || '';
+    const characterId = resp.characterId;
+
+    if (!characterId) continue;
+
+    // 检测负面情绪
+    const hasNegativeEmotion = NEGATIVE_KEYWORDS.some(kw => content.includes(kw));
+
+    if (hasNegativeEmotion) {
+      console.log(`[可乐] 群聊检测到 ${resp.characterName} 的负面情绪:`, content.substring(0, 30));
+
+      // 触发私聊（延迟执行，有概率触发）
+      // 传递群聊上下文，让私聊时AI知道群里发生了什么
+      import('./proactive-message.js').then(m => {
+        m.triggerProactiveFromGroup(characterId, 'negative', groupContext);
+      }).catch(err => {
+        console.error('[可乐] 群聊情绪触发私聊失败:', err);
+      });
+    }
   }
 }

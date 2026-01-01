@@ -258,6 +258,17 @@ export async function testApiConnection() {
   }
 }
 
+// 测试指定 API 连接（接受参数）
+export async function testConnection(apiUrl, apiKey, model) {
+  if (!apiUrl) {
+    throw new Error('请先配置 API 地址');
+  }
+
+  // 尝试获取模型列表来验证连接
+  await fetchModelListFromApi(apiUrl, apiKey);
+  return true;
+}
+
 // 获取模型列表
 export async function fetchModelList() {
   const config = getApiConfig();

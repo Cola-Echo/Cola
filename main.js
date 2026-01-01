@@ -12,7 +12,7 @@ import { showPage, refreshChatList, updateMePageInfo, getUserPersonaFromST, upda
 import { showToast } from './toast.js';
 import { ICON_SUCCESS, ICON_INFO } from './icons.js';
 
-import { addContact, refreshContactsList, openContactSettings, saveContactSettings, closeContactSettings, changeContactAvatar, getCurrentEditingContactIndex } from './contacts.js';
+import { addContact, refreshContactsList, openContactSettings, saveContactSettings, closeContactSettings, changeContactAvatar, getCurrentEditingContactIndex, closeMpApiSettings, saveMpApiSettings, handleMpAvatarChange } from './contacts.js';
 import { openChatByContactId, setCurrentChatIndex, sendMessage, showRecalledMessages, currentChatIndex, openChat, updateBlockMenuText, startBlockedAIMessages, stopBlockedAIMessages, showBlockedMessages } from './chat.js';
 import { refreshFavoritesList, showLorebookModal, syncCharacterBookToTavern, showAddLorebookPanel, showAddPersonaPanel } from './favorites.js';
 import { executeSummary, rollbackSummary, refreshSummaryChatList, selectAllSummaryChats, recoverFromTavernWorldbook } from './summary.js';
@@ -23,6 +23,7 @@ import { extractCharacterFromPNG, extractCharacterFromJSON, importCharacterToST 
 import { setupPhoneAutoCentering, setupPhoneDrag, centerPhoneInViewport } from './phone.js';
 
 import { showGroupCreateModal, closeGroupCreateModal, createGroupChat, sendGroupMessage, isInGroupChat, setCurrentGroupChatIndex, getCurrentGroupIndex, openGroupChat } from './group-chat.js';
+import { isInMultiPersonChat, sendMultiPersonMessage, setCurrentMultiPersonChatIndex } from './multi-person-chat.js';
 import { toggleDarkMode, refreshContextTags } from './settings-ui.js';
 import { initFuncPanel, toggleFuncPanel, hideFuncPanel, showExpandVoice, closeExpandPanel, sendExpandContent } from './chat-func-panel.js';
 import { initEmojiPanel, toggleEmojiPanel, hideEmojiPanel } from './emoji-panel.js';
@@ -39,6 +40,7 @@ import { initCropper } from './cropper.js';
 import { createFloatingBall, showFloatingBall, hideFloatingBall } from './floating-ball.js';
 import { testSttApi, testTtsApi } from './voice-api.js';
 import { getVoiceRecordingsByContact, deleteVoiceRecording, playVoiceRecording, getAllVoiceRecordingsGroupedByContact, deleteVoiceRecordingsByContact } from './audio-storage.js';
+import { initMultiCharImport, openMultiImportModal, getMultiCharImportModalHtml, getCharSelectModalHtml, getCharOtherEditModalHtml } from './multi-char-import.js';
 
 // ========== 历史记录功能 ==========
 let currentHistoryTab = 'listen';
@@ -71,7 +73,7 @@ function closeHistoryPage() {
   currentHistoryContactIndex = -1;
 }
 
-function deleteHistoryRecord(tabType, index) {
+function deleteHistoryRecord(tabType, index, isRealVoice = false) {
   const settings = getSettings();
   const contact = settings.contacts?.[currentHistoryContactIndex];
   if (!contact) return;
@@ -80,8 +82,32 @@ function deleteHistoryRecord(tabType, index) {
     if (contact.listenHistory && contact.listenHistory[index]) {
       contact.listenHistory.splice(index, 1);
     }
-  } else if (tabType === 'voice' || tabType === 'video') {
-    // 从 callHistory 中找到并删除对应类型的记录
+  } else if (tabType === 'voice') {
+    if (isRealVoice) {
+      // 删除实时语音记录
+      if (contact.realVoiceCallHistory && contact.realVoiceCallHistory.length > 0) {
+        // 找到实时语音记录在合并数组中的索引对应的原始索引
+        const realVoiceRecords = contact.realVoiceCallHistory;
+        const callHistory = contact.callHistory || [];
+        const voiceRecords = callHistory.filter(r => r.type === 'voice');
+        // index 是在合并数组中的位置，需要计算在 realVoiceCallHistory 中的实际位置
+        const realVoiceIndex = index - voiceRecords.length;
+        if (realVoiceIndex >= 0 && realVoiceIndex < realVoiceRecords.length) {
+          contact.realVoiceCallHistory.splice(realVoiceIndex, 1);
+        }
+      }
+    } else {
+      // 删除普通语音通话记录
+      const callHistory = contact.callHistory || [];
+      const typeRecords = callHistory.filter(r => r.type === 'voice');
+      if (typeRecords[index]) {
+        const originalIndex = callHistory.indexOf(typeRecords[index]);
+        if (originalIndex >= 0) {
+          contact.callHistory.splice(originalIndex, 1);
+        }
+      }
+    }
+  } else if (tabType === 'video') {
     const callHistory = contact.callHistory || [];
     const typeRecords = callHistory.filter(r => r.type === tabType);
     if (typeRecords[index]) {
@@ -151,8 +177,17 @@ function renderHistoryContent(contact, tabType) {
   let records = [];
   if (tabType === 'listen') {
     records = contact.listenHistory || [];
+  } else if (tabType === 'voice') {
+    // 语音通话：合并普通语音通话和实时语音通话
+    const callHistory = contact.callHistory || [];
+    const voiceRecords = callHistory.filter(r => r.type === 'voice');
+    const realVoiceRecords = (contact.realVoiceCallHistory || []).map(r => ({
+      ...r,
+      isRealVoice: true  // 标记为实时语音
+    }));
+    records = [...voiceRecords, ...realVoiceRecords];
   } else {
-    // 从 callHistory 中筛选 voice 或 video
+    // 从 callHistory 中筛选 video
     const callHistory = contact.callHistory || [];
     records = callHistory.filter(r => r.type === tabType);
   }
@@ -179,12 +214,13 @@ function renderHistoryContent(contact, tabType) {
     const duration = record.duration || '';
     const messages = record.messages || [];
     const originalIndex = records.indexOf(record);
+    const isRealVoice = record.isRealVoice ? 'true' : 'false';
 
-    html += `<div class="wechat-history-card" data-tab="${tabType}" data-index="${originalIndex}">`;
+    html += `<div class="wechat-history-card" data-tab="${tabType}" data-index="${originalIndex}" data-real-voice="${isRealVoice}">`;
     html += `<div class="wechat-history-card-header">`;
-    html += `<span class="wechat-history-card-time">${escapeHtml(time)}</span>`;
+    html += `<span class="wechat-history-card-time">${escapeHtml(time)}${record.isRealVoice ? ' <span style="color: #07c160; font-size: 12px;">[实时语音]</span>' : ''}</span>`;
     html += `<div class="wechat-history-card-actions">`;
-    html += `<button class="wechat-history-delete-btn" data-tab="${tabType}" data-index="${originalIndex}" title="删除">×</button>`;
+    html += `<button class="wechat-history-delete-btn" data-tab="${tabType}" data-index="${originalIndex}" data-real-voice="${isRealVoice}" title="删除">×</button>`;
     if (duration) {
       html += `<span class="wechat-history-card-duration">${escapeHtml(duration)}</span>`;
     }
@@ -224,7 +260,8 @@ function renderHistoryContent(contact, tabType) {
       e.stopPropagation();
       const tab = btn.dataset.tab;
       const index = parseInt(btn.dataset.index);
-      deleteHistoryRecord(tab, index);
+      const isRealVoice = btn.dataset.realVoice === 'true';
+      deleteHistoryRecord(tab, index, isRealVoice);
     });
   });
 }
@@ -986,11 +1023,14 @@ function bindEvents() {
   document.getElementById('wechat-chat-back-btn')?.addEventListener('click', () => {
     setCurrentChatIndex(-1);
     setCurrentGroupChatIndex(-1);
-    // 清除群聊标记
+    setCurrentMultiPersonChatIndex(-1);
+    // 清除群聊和多人群聊标记
     const messagesContainer = document.getElementById('wechat-chat-messages');
     if (messagesContainer) {
       messagesContainer.dataset.isGroup = 'false';
       messagesContainer.dataset.groupIndex = '-1';
+      messagesContainer.dataset.isMultiPerson = 'false';
+      messagesContainer.dataset.multiPersonIndex = '-1';
       // 清除背景
       messagesContainer.style.backgroundImage = '';
     }
@@ -1024,6 +1064,12 @@ function bindEvents() {
   // 关闭撤回消息区面板
   document.getElementById('wechat-recalled-close')?.addEventListener('click', () => {
     document.getElementById('wechat-recalled-panel')?.classList.add('hidden');
+  });
+
+  // 邀请成员（群聊）
+  document.getElementById('wechat-menu-invite-member')?.addEventListener('click', () => {
+    document.getElementById('wechat-chat-menu')?.classList.add('hidden');
+    import('./group-chat.js').then(m => m.showInviteMemberModal());
   });
 
   // 查看TA的朋友圈
@@ -1216,6 +1262,11 @@ function bindEvents() {
     }
 
     this.value = '';
+  });
+
+  // 导入多人卡
+  document.getElementById('wechat-import-multi-card')?.addEventListener('click', () => {
+    openMultiImportModal();
   });
 
   // 深色模式切换
@@ -1522,6 +1573,186 @@ function bindEvents() {
     }
   });
 
+  // ===== 多人群聊配置弹窗事件 =====
+  // 关闭按钮
+  document.getElementById('wechat-mp-api-close')?.addEventListener('click', closeMpApiSettings);
+
+  // 保存按钮
+  document.getElementById('wechat-mp-api-save')?.addEventListener('click', saveMpApiSettings);
+
+  // 更换头像按钮
+  document.getElementById('wechat-mp-change-avatar')?.addEventListener('click', () => {
+    document.getElementById('wechat-mp-avatar-file')?.click();
+  });
+
+  // 头像预览点击也可以更换
+  document.getElementById('wechat-mp-avatar-preview')?.addEventListener('click', () => {
+    document.getElementById('wechat-mp-avatar-file')?.click();
+  });
+
+  // 头像文件选择
+  document.getElementById('wechat-mp-avatar-file')?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleMpAvatarChange(file);
+    }
+    e.target.value = '';  // 清空以便重复选择同一文件
+  });
+
+  // 独立API开关
+  document.getElementById('wechat-mp-use-custom-api')?.addEventListener('click', () => {
+    const toggle = document.getElementById('wechat-mp-use-custom-api');
+    const apiConfigDiv = document.getElementById('wechat-mp-api-config');
+    const globalTip = document.getElementById('wechat-mp-global-tip');
+    toggle?.classList.toggle('on');
+    const isOn = toggle?.classList.contains('on');
+    if (apiConfigDiv) {
+      if (isOn) {
+        apiConfigDiv.classList.remove('hidden');
+        apiConfigDiv.style.display = 'flex';
+      } else {
+        apiConfigDiv.classList.add('hidden');
+        apiConfigDiv.style.display = 'none';
+      }
+    }
+    if (globalTip) {
+      globalTip.classList.toggle('hidden', isOn);
+    }
+  });
+
+  // 多人群聊API获取模型按钮
+  document.getElementById('wechat-mp-fetch-model')?.addEventListener('click', async () => {
+    const apiUrl = document.getElementById('wechat-mp-api-url')?.value?.trim();
+    const apiKey = document.getElementById('wechat-mp-api-key')?.value?.trim();
+    const modelSelect = document.getElementById('wechat-mp-model-select');
+    const fetchBtn = document.getElementById('wechat-mp-fetch-model');
+
+    if (!apiUrl) {
+      showToast('请先填写API地址', 'info');
+      return;
+    }
+
+    fetchBtn.textContent = '...';
+    fetchBtn.disabled = true;
+
+    try {
+      const { fetchModelListFromApi } = await import('./ai.js');
+      const models = await fetchModelListFromApi(apiUrl, apiKey);
+      if (models.length > 0) {
+        const currentValue = modelSelect?.value || '';
+        modelSelect.innerHTML = '<option value="">---请选择模型---</option>' +
+          models.map(m => `<option value="${m}"${m === currentValue ? ' selected' : ''}>${m}</option>`).join('');
+        showToast(`获取到 ${models.length} 个模型`);
+      } else {
+        showToast('未找到可用模型', 'info');
+      }
+    } catch (err) {
+      console.error('[可乐] 获取模型失败:', err);
+      showToast('获取失败: ' + err.message, '⚠️');
+    } finally {
+      fetchBtn.textContent = '获取';
+      fetchBtn.disabled = false;
+    }
+  });
+
+  // 多人群聊API手动输入按钮
+  document.getElementById('wechat-mp-model-manual')?.addEventListener('click', () => {
+    const selectWrapper = document.getElementById('wechat-mp-model-select-wrapper');
+    const inputWrapper = document.getElementById('wechat-mp-model-input-wrapper');
+    const modelSelect = document.getElementById('wechat-mp-model-select');
+    const modelInput = document.getElementById('wechat-mp-model-input');
+
+    if (modelSelect?.value) {
+      modelInput.value = modelSelect.value;
+    }
+
+    selectWrapper.style.display = 'none';
+    inputWrapper.style.display = 'flex';
+    modelInput?.focus();
+  });
+
+  // 多人群聊API返回按钮
+  document.getElementById('wechat-mp-model-back')?.addEventListener('click', () => {
+    const selectWrapper = document.getElementById('wechat-mp-model-select-wrapper');
+    const inputWrapper = document.getElementById('wechat-mp-model-input-wrapper');
+    const modelSelect = document.getElementById('wechat-mp-model-select');
+    const modelInput = document.getElementById('wechat-mp-model-input');
+
+    const inputValue = modelInput?.value?.trim();
+    if (inputValue && modelSelect) {
+      const existingOption = Array.from(modelSelect.options).find(opt => opt.value === inputValue);
+      if (existingOption) {
+        modelSelect.value = inputValue;
+      } else {
+        const newOption = document.createElement('option');
+        newOption.value = inputValue;
+        newOption.textContent = inputValue;
+        modelSelect.appendChild(newOption);
+        modelSelect.value = inputValue;
+      }
+    }
+
+    selectWrapper.style.display = 'flex';
+    inputWrapper.style.display = 'none';
+  });
+
+  // 多人群聊API测试连接按钮
+  document.getElementById('wechat-mp-test-api')?.addEventListener('click', async () => {
+    const apiUrl = document.getElementById('wechat-mp-api-url')?.value?.trim();
+    const apiKey = document.getElementById('wechat-mp-api-key')?.value?.trim();
+    const inputWrapper = document.getElementById('wechat-mp-model-input-wrapper');
+    const isManualMode = inputWrapper?.style.display === 'flex';
+    const model = isManualMode
+      ? document.getElementById('wechat-mp-model-input')?.value?.trim()
+      : document.getElementById('wechat-mp-model-select')?.value?.trim();
+    const testBtn = document.getElementById('wechat-mp-test-api');
+
+    if (!apiUrl) {
+      showToast('请先填写API地址', 'info');
+      return;
+    }
+    if (!model) {
+      showToast('请先填写或选择模型', 'info');
+      return;
+    }
+
+    testBtn.textContent = '测试中...';
+    testBtn.disabled = true;
+
+    try {
+      const chatUrl = apiUrl.replace(/\/+$/, '') + '/chat/completions';
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const response = await fetch(chatUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: model,
+          messages: [{ role: 'user', content: '请回复"连接成功"' }],
+          max_tokens: 50
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`${response.status}: ${errorText.substring(0, 100)}`);
+      }
+
+      const data = await response.json();
+      const reply = data.choices?.[0]?.message?.content || '';
+      showToast(`连接成功！回复: ${reply.substring(0, 20)}...`, 'success');
+    } catch (err) {
+      console.error('[可乐] 测试连接失败:', err);
+      showToast('❌ 连接失败: ' + err.message, '⚠️');
+    } finally {
+      testBtn.textContent = '测试连接';
+      testBtn.disabled = false;
+    }
+  });
+
   // ===== 群聊设置事件 =====
   // 群聊提示词注入开关
   document.getElementById('wechat-group-inject-toggle')?.addEventListener('click', () => {
@@ -1584,10 +1815,15 @@ function bindEvents() {
         text: text.substring(0, 20),
         isGroup: messagesContainer?.dataset?.isGroup,
         groupIndex: messagesContainer?.dataset?.groupIndex,
-        isInGroupChatResult: isInGroupChat()
+        isMultiPerson: messagesContainer?.dataset?.isMultiPerson,
+        isInGroupChatResult: isInGroupChat(),
+        isInMultiPersonChatResult: isInMultiPersonChat()
       });
 
-      if (isInGroupChat()) {
+      if (isInMultiPersonChat()) {
+        console.log('[可乐] 调用 sendMultiPersonMessage');
+        sendMultiPersonMessage(text);
+      } else if (isInGroupChat()) {
         console.log('[可乐] 调用 sendGroupMessage');
         sendGroupMessage(text);
       } else {
@@ -1605,7 +1841,9 @@ function bindEvents() {
     const text = chatInput?.value?.trim();
     if (text) {
       // 有文字时发送消息
-      if (isInGroupChat()) {
+      if (isInMultiPersonChat()) {
+        sendMultiPersonMessage(text);
+      } else if (isInGroupChat()) {
         sendGroupMessage(text);
       } else {
         sendMessage(text);
@@ -1639,6 +1877,7 @@ function bindEvents() {
   initGiftEvents();
   initCropper();
   initHistoryEvents();
+  initMultiCharImport();
 
   // 展开面板
   document.getElementById('wechat-expand-close')?.addEventListener('click', closeExpandPanel);
@@ -1682,7 +1921,7 @@ function bindEvents() {
     });
   });
 
-  // 聊天列表项点击（支持单聊和群聊）
+  // 聊天列表项点击（支持单聊、群聊和多人群聊）
   document.getElementById('wechat-chat-list')?.addEventListener('click', (e) => {
     const chatItem = e.target.closest('.wechat-chat-item');
     if (!chatItem) return;
@@ -1692,6 +1931,12 @@ function bindEvents() {
       const groupIndex = parseInt(chatItem.dataset.groupIndex);
       if (!isNaN(groupIndex)) {
         import('./group-chat.js').then(m => m.openGroupChat(groupIndex));
+      }
+    } else if (chatItem.classList.contains('wechat-chat-item-mp')) {
+      // 多人群聊
+      const mpIndex = parseInt(chatItem.dataset.mpIndex);
+      if (!isNaN(mpIndex)) {
+        import('./multi-person-chat.js').then(m => m.openMultiPersonChat(mpIndex));
       }
     } else {
       // 单聊
@@ -2026,6 +2271,13 @@ function bindEvents() {
         allPanels.filter(p => p !== 'wechat-voice-api-panel').forEach(p => document.getElementById(p)?.classList.add('hidden'));
         const panel = document.getElementById('wechat-voice-api-panel');
         panel?.classList.toggle('hidden');
+        return;
+      }
+
+      if (service === 'multi-char-table') {
+        // 切换角色表格区域的显示/隐藏
+        const section = document.getElementById('wechat-char-tables-section');
+        section?.classList.toggle('hidden');
         return;
       }
 
