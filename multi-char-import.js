@@ -331,7 +331,7 @@ export function generateCharacterTablesHtml() {
                               data-char-idx="${charIdx}"
                               data-other="${escapeHtml(otherText)}"
                               title="${hasOther ? '点击查看/编辑' : '点击添加'}"
-                              style="width: 100%; font-size: 11px; padding: 3px 4px; ${hasOther ? 'background: var(--wechat-primary); color: white;' : ''}">
+                              style="width: 100%; font-size: 11px; padding: 3px 4px; ${hasOther ? 'background: var(--wechat-green); color: white;' : ''}">
                         ${hasOther ? '详情' : '+'}
                       </button>
                     </td>
@@ -525,7 +525,7 @@ function saveCharOtherEdit() {
     const hasOther = newValue.length > 0;
     btn.textContent = hasOther ? '详情' : '+';
     btn.title = hasOther ? '点击查看/编辑' : '点击添加';
-    btn.style.background = hasOther ? 'var(--wechat-primary)' : '';
+    btn.style.background = hasOther ? 'var(--wechat-green)' : '';
     btn.style.color = hasOther ? 'white' : '';
   }
 

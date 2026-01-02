@@ -7,7 +7,7 @@ import { requestSave } from './save-manager.js';
 import { currentChatIndex, openChat, showTypingIndicator, hideTypingIndicator, appendMessage } from './chat.js';
 import { showToast } from './toast.js';
 import { getContext } from '../../../extensions.js';
-import { formatQuoteDate } from './utils.js';
+import { formatQuoteDate, sleep } from './utils.js';
 import { isInGroupChat, getCurrentGroupIndex, openGroupChat } from './group-chat.js';
 
 // 当前显示菜单的消息索引
@@ -504,11 +504,16 @@ async function regenerateMessage(msgIndex, contact) {
       if (!finalMsg) continue;
 
       let isVoice = false;
-      const voiceMatch = finalMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
+      const voiceMatch = finalMsg.match(/^\s*\[语音[：:]\s*(.+?)\]\s*$/);
       if (voiceMatch) {
         finalMsg = voiceMatch[1];
         isVoice = true;
       }
+
+      // 每条消息都要有typing效果和2-2.5秒延迟（与普通回复一致）
+      showTypingIndicator(contact);
+      await sleep(2000 + Math.random() * 500);
+      hideTypingIndicator();
 
       contact.chatHistory.push({
         role: 'assistant',
@@ -735,7 +740,8 @@ function getRealMsgIndex(container, msgElement) {
     const content = msg.content || '';
     const isSpecial = msg.isVoice || msg.isSticker || msg.isPhoto || msg.isMusic;
     // 检查是否包含 ||| 或 <meme> 标签（这些会导致消息被分割显示）
-    if (!isSpecial && (content.indexOf('|||') >= 0 || /<\s*meme\s*>/i.test(content))) {
+    // 注意：只有 assistant 消息才会被分割，用户消息不会分割
+    if (msg.role === 'assistant' && !isSpecial && (content.indexOf('|||') >= 0 || /<\s*meme\s*>/i.test(content))) {
       // 使用 splitAIMessages 计算实际分割数量
       const parts = splitAIMessages(content).filter(p => p && p.trim());
       visualMsgCount = parts.length || 1;

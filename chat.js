@@ -1476,7 +1476,8 @@ function getRealMsgIndexForVoice(container, msgElement) {
     let visualMsgCount = 1;
     const content = msg.content || '';
     const isSpecial = msg.isVoice || msg.isSticker || msg.isPhoto || msg.isMusic;
-    if (!isSpecial && content.indexOf('|||') >= 0) {
+    // 只有 assistant 消息才会被 ||| 分割显示
+    if (msg.role === 'assistant' && !isSpecial && content.indexOf('|||') >= 0) {
       const parts = content.split('|||').map(p => p.trim()).filter(p => p);
       visualMsgCount = parts.length || 1;
     }
@@ -2022,14 +2023,14 @@ export async function sendMessage(messageText, isMultipleMessages = false, isVoi
         }
       }
 
-      const voiceMatch = aiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
+      const voiceMatch = aiMsg.match(/^\s*\[语音[：:]\s*(.+?)\]\s*$/);
       if (voiceMatch) {
         aiMsg = voiceMatch[1];
         aiIsVoice = true;
       }
 
       // 解析AI照片格式 [照片:描述]
-      const photoMatch = aiMsg.match(/^\[照片[：:]\s*(.+?)\]$/);
+      const photoMatch = aiMsg.match(/^\s*\[照片[：:]\s*(.+?)\]\s*$/);
       if (photoMatch) {
         aiMsg = photoMatch[1];
         aiIsPhoto = true;
@@ -2602,14 +2603,14 @@ export async function sendStickerMessage(stickerUrl, description = '') {
         if (!aiMsg.trim()) continue;
       }
 
-      const voiceMatch = aiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
+      const voiceMatch = aiMsg.match(/^\s*\[语音[：:]\s*(.+?)\]\s*$/);
       if (voiceMatch) {
         aiMsg = voiceMatch[1];
         aiIsVoice = true;
       }
 
       // 解析AI照片格式 [照片:描述]
-      const photoMatch = aiMsg.match(/^\[照片[：:]\s*(.+?)\]$/);
+      const photoMatch = aiMsg.match(/^\s*\[照片[：:]\s*(.+?)\]\s*$/);
       if (photoMatch) {
         aiMsg = photoMatch[1];
         aiIsPhoto = true;
@@ -3049,14 +3050,14 @@ export async function sendPhotoMessage(description) {
         if (!aiMsg.trim()) continue;
       }
 
-      const voiceMatch = aiMsg.match(/^\[语音[：:]\s*(.+?)\]$/);
+      const voiceMatch = aiMsg.match(/^\s*\[语音[：:]\s*(.+?)\]\s*$/);
       if (voiceMatch) {
         aiMsg = voiceMatch[1];
         aiIsVoice = true;
       }
 
       // 解析AI照片格式 [照片:描述]
-      const photoMatch = aiMsg.match(/^\[照片[：:]\s*(.+?)\]$/);
+      const photoMatch = aiMsg.match(/^\s*\[照片[：:]\s*(.+?)\]\s*$/);
       if (photoMatch) {
         aiMsg = photoMatch[1];
         aiIsPhoto = true;

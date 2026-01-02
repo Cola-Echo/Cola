@@ -2379,9 +2379,15 @@
   color: inherit;
 }
 
-/* 用户消息的图标朝向左（水平翻转） */
+/* 用户消息的图标朝向左（水平翻转）+ 黑色 */
 .wechat-voice-bubble.self .wechat-voice-waves-icon {
   transform: scaleX(-1);
+  color: #000;
+}
+
+/* 用户消息的时长文字也是黑色 */
+.wechat-voice-bubble.self .wechat-voice-duration {
+  color: #000;
 }
 
 /* 对方消息的图标朝向右（默认方向） */
@@ -5306,7 +5312,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 120px;
+  bottom: 165px;
   max-height: 250px;
   display: flex;
   flex-direction: column;

@@ -1037,7 +1037,7 @@ function generateModalsHTML(settings) {
         <div id="wechat-group-contacts-list" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--wechat-border); border-radius: 8px; padding: 8px;"></div>
 
         <div style="margin-top: 12px; text-align: center; color: var(--wechat-text-secondary); font-size: 13px;">
-          已选择 <span id="wechat-group-selected-count" style="color: var(--wechat-primary); font-weight: 500;">0</span> 人
+          已选择 <span id="wechat-group-selected-count" style="color: var(--wechat-green); font-weight: 500;">0</span> 人
         </div>
 
         <div class="wechat-modal-actions" style="margin-top: 16px;">
